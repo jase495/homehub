@@ -1,0 +1,26 @@
+name: Signed release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[test]"
+      - run: pytest
+      - run: node --check frontend/dashboard/app.js
+      - run: node --check frontend/setup/setup.js
+      - run: python tools/build_release.py
+      - run: python tools/sign_release.py
+        env:
+          HOMEHUB_UPDATE_SIGNING_KEY: ${{ secrets.HOMEHUB_UPDATE_SIGNING_KEY }}
+      - run: gh release create "${GITHUB_REF_NAME}" dist/homehub-*.tar.gz dist/manifest.json dist/manifest.sig --generate-notes --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}

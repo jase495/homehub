@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "homehub-appliance"
+version = "1.0.0"
+description = "Touch-first family calendar, tasks and farm weather appliance for Raspberry Pi"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+  "Flask>=3.0,<4",
+  "google-api-python-client>=2.130,<3",
+  "google-auth>=2.29,<3",
+  "google-auth-oauthlib>=1.2,<2",
+  "qrcode>=7.4,<9",
+  "requests>=2.31,<3",
+  "cryptography>=42,<46",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<9", "pytest-cov>=5,<7"]
+
+[project.scripts]
+homehub-server = "homehub.app:main"
+homehub-display-power = "homehub.display_power:main"
+homehub-updater = "homehub.updater:main"
+
+[tool.setuptools]
+package-dir = {"" = "backend"}
+
+[tool.setuptools.packages.find]
+where = ["backend"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+

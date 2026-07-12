@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="theme-color" content="#0b0f13">
+  <title>HomeHub</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="performance.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <section class="brand-block">
+        <div class="home-mark">H</div>
+        <div>
+          <h1 id="appTitle">HomeHub</h1>
+          <p id="appSubtitle"></p>
+        </div>
+      </section>
+      <nav class="month-nav" aria-label="Calendar navigation">
+        <button id="prevMonth" class="icon-button" aria-label="Previous month">‹</button>
+        <button id="todayButton" class="text-button">Today</button>
+        <button id="nextMonth" class="icon-button" aria-label="Next month">›</button>
+      </nav>
+      <h2 id="monthTitle" class="month-title">July 2026</h2>
+      <section class="top-actions">
+        <div id="milestone" class="milestone hidden"></div>
+        <button id="addEvent" class="action-button">＋ Event</button>
+        <button id="settings" class="icon-button" aria-label="Settings">⚙</button>
+      </section>
+      <section class="clock-block">
+        <strong id="clockTime">10:42 am</strong>
+        <span id="clockDate">Wed 8 Jul 2026</span>
+      </section>
+    </header>
+
+    <section class="main-grid">
+      <section class="calendar-card">
+        <div class="weekday-row"><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div></div>
+        <div id="calendarGrid" class="calendar-grid"></div>
+        <div id="calendarLegend" class="calendar-legend"></div>
+      </section>
+
+      <aside class="side-column">
+        <section id="weatherCard" class="weather-card">
+          <header>
+            <div><span class="panel-kicker">Home Weather</span><h2>From your station</h2></div>
+            <span id="weatherStatus" class="weather-status">Not set</span>
+          </header>
+          <div id="weatherItems" class="weather-items">
+            <div class="weather-empty">Weather not configured yet</div>
+          </div>
+        </section>
+
+        <section class="tasks-card">
+          <header class="tasks-header">
+            <h2>Family Tasks</h2>
+            <button id="addTask" class="small-action">＋ Task</button>
+          </header>
+          <div id="tasksList" class="tasks-list"></div>
+          <button id="completedToggle" class="completed-toggle">
+            <span id="completedLabel">Completed tasks (0)</span><span id="completedChevron">⌄</span>
+          </button>
+          <div id="completedList" class="completed-list hidden"></div>
+        </section>
+      </aside>
+    </section>
+
+    <footer class="statusbar">
+      <section class="live-status">
+        <span id="statusDot" class="status-dot stale"></span>
+        <div><strong id="statusText">Starting</strong><small id="updatedText">Waiting for data</small></div>
+      </section>
+      <section class="touch-hint">Tap a day to add an event &nbsp;&nbsp;|&nbsp;&nbsp; Tasks and weather stay small so the calendar stays king</section>
+      <section class="sleep-status"><span class="night-label">Night</span> <div><strong>Screen off</strong><small id="sleepText">10:00 pm – 6:00 am</small></div></section>
+    </footer>
+  </main>
+
+  <div id="detailsModal" class="modal hidden"><section class="modal-card compact"><button class="modal-close" data-close="detailsModal">×</button><div id="detailsColor" class="modal-accent"></div><h3 id="detailsTitle"></h3><p id="detailsTime"></p><p id="detailsCalendar"></p><p id="detailsLocation"></p></section></div>
+
+  <div id="eventModal" class="modal hidden"><section class="modal-card editor-card"><button class="modal-close" data-close="eventModal">×</button><span class="modal-kicker">New calendar event</span><h3>Add event</h3><label class="field-label">What is happening?</label><input id="eventTitle" class="touch-input" autocomplete="off" maxlength="100" readonly>
+    <div class="form-row"><div class="step-field"><label>Date</label><div><button id="dateMinus">‹</button><strong id="eventDateLabel"></strong><button id="datePlus">›</button></div></div><div id="timeField" class="step-field"><label>Start</label><div><button id="timeMinus">−</button><strong id="eventTimeLabel"></strong><button id="timePlus">＋</button></div></div></div>
+    <label class="field-label">Length</label><div id="durations" class="choice-row"><button data-duration="30">30 min</button><button data-duration="60">1 hour</button><button data-duration="120">2 hours</button><button data-duration="allDay">All day</button></div>
+    <label class="field-label">Calendar</label><select id="calendarSelect" class="touch-select"></select>
+    <div id="eventKeyboard" class="keyboard"></div><button id="saveEvent" class="primary-button">Add event</button>
+  </section></div>
+
+  <div id="taskModal" class="modal hidden"><section class="modal-card editor-card task-editor"><button class="modal-close" data-close="taskModal">×</button><span class="modal-kicker">New family job</span><h3>Add task</h3><label class="field-label">What needs doing?</label><input id="taskTitle" class="touch-input" autocomplete="off" maxlength="100" readonly><label class="field-label">Task list</label><select id="taskListSelect" class="touch-select"></select><label class="field-label">Due</label><div id="taskDueChoices" class="choice-row"><button data-due="">No date</button><button data-due="today">Today</button><button data-due="tomorrow">Tomorrow</button></div><div id="taskKeyboard" class="keyboard"></div><button id="saveTask" class="primary-button">Add task</button></section></div>
+
+  <div id="settingsModal" class="modal hidden"><section class="modal-card settings-card"><button class="modal-close" data-close="settingsModal">×</button><span class="modal-kicker">HomeHub Setup</span><h3>Scan with your phone</h3><div class="setup-qr-wrap"><img id="setupQr" alt="HomeHub setup QR code"><div><strong>Your private setup portal</strong><p>Configure calendars, tasks, farm weather, screen power and appliance updates.</p><code id="setupUrl">Loading setup address…</code></div></div><hr><h3>Quick screen power</h3><label class="switch-row"><span><strong>Night-time power saving</strong><small>The Pi keeps syncing while the monitor sleeps.</small></span><input id="sleepEnabled" type="checkbox"><i></i></label><div class="form-row"><label class="select-field">Screen off<select id="sleepOff" class="touch-select"></select></label><label class="select-field">Screen on<select id="sleepOn" class="touch-select"></select></label></div><button id="saveSettings" class="primary-button">Save screen settings</button></section></div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js"></script>
+</body>
+</html>

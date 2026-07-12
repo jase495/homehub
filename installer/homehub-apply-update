@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export HOMEHUB_APP_ROOT=/opt/homehub/current
+export HOMEHUB_STATE_DIR=/var/lib/homehub
+export PYTHONPATH=/opt/homehub/current/backend
+exec /opt/homehub/venv/bin/python -m homehub.updater install "$@"

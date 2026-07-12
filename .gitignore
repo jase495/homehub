@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+*.pyc
+dist/
+build/
+*.egg-info/
+.env
+credentials.json
+token.json
+config.json
+update-signing-private.key
+release-signing/
