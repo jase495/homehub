@@ -1,8 +1,9 @@
 * text=auto
 *.sh text eol=lf
-installer/homehub-apply-update text eol=lf
-installer/homehub-queue-update text eol=lf
+installer/homehub-* text eol=lf
 *.service text eol=lf
 *.py text eol=lf
 *.js text eol=lf
 *.css text eol=lf
+*.html text eol=lf
+VERSION text eol=lf

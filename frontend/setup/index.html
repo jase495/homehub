@@ -1,23 +1,36 @@
 <!doctype html>
-<html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#17110c"><title>HomeHub Setup</title><link rel="stylesheet" href="setup.css"><link rel="stylesheet" href="setup-v6.css"></head>
-<body><main>
-<header><div class="logo">H</div><div><h1>HomeHub Setup</h1><p>Family calendar appliance</p></div><span id="connection">Loading…</span></header>
-<section class="hero"><h2>Configure this HomeHub</h2><p>Changes save directly to the appliance. Google passwords are never entered or stored here.</p></section>
-<section class="card"><h2>Setup progress</h2><div id="progress" class="progress"></div></section>
-<section class="card"><h2>Google Calendar & Tasks</h2><div class="statusline"><span id="googleStatus">Not connected</span></div>
-<label class="upload">1. Upload Google OAuth credentials JSON<input id="credentials" type="file" accept="application/json,.json"></label>
-<button id="uploadCredentials">Upload credentials</button>
-<div class="google-connect"><button id="connectGoogle" class="primary">2. Connect Google</button><p id="googleHelp">For the Google approval step, open this setup portal through the secure tunnel shown below.</p><code id="tunnelCommand"></code></div>
-</section>
-<section class="card"><h2>Calendars & task lists</h2><p>Choose what appears on the appliance after Google connects.</p><div class="choice-grid"><div><h3>Calendars</h3><div id="calendarChoices" class="choices"></div></div><div><h3>Task lists</h3><div id="taskChoices" class="choices"></div></div></div></section>
-<section class="card"><h2>HomeHub</h2><div class="grid"><label>Name<input id="title" value="HomeHub"></label><label>Subtitle<input id="subtitle" value=""></label><label>Timezone<input id="timezone" value="Australia/Brisbane"></label></div></section>
-<section class="card"><h2>Screen power</h2><div class="grid"><label class="check"><input id="sleepEnabled" type="checkbox" checked> Night-time screen off</label><label>Screen off<input id="sleepOff" type="time" value="22:00"></label><label>Screen on<input id="sleepOn" type="time" value="06:00"></label></div></section>
-<section class="card"><h2>Home weather station</h2><p>HomeHub can discover compatible Ecowitt gateways on the same network, or use Ecowitt cloud access.</p><div class="actions"><button id="scanWeather">Scan this network</button></div><div id="stations" class="stations"></div>
-<div class="tabs"><button data-tab="local" class="selected">Local gateway</button><button data-tab="cloud">Ecowitt cloud</button></div>
-<div id="localWeather" class="tab"><label>Gateway URL or IP<input id="gatewayUrl" placeholder="http://192.168.1.84"></label><label>Station MAC (optional)<input id="stationMac" placeholder="AA:BB:CC:DD:EE:FF"></label></div>
-<div id="cloudWeather" class="tab hidden"><div class="grid"><label>Application key<input id="appKey"></label><label>API key<input id="apiKey"></label><label>Device MAC<input id="cloudMac"></label></div></div>
-</section>
-<section class="card"><h2>Wedding countdown</h2><div class="grid"><label class="check"><input id="milestoneEnabled" type="checkbox" checked> Show countdown</label><label>Label<input id="milestoneLabel" value="Wedding"></label><label>Date<input id="milestoneDate" type="date" value="2026-09-12"></label></div></section>
-<section class="card"><h2>System update</h2><p id="versionStatus">Checking installed version…</p><div class="actions"><button id="checkUpdate">Check for update</button><button id="installUpdate" class="primary" disabled>Install verified update</button><button id="restartDisplay">Restart display</button></div><p class="fineprint">Only versioned releases with a valid HomeHub Ed25519 signature are accepted. Failed health checks roll back automatically.</p></section>
-<section class="savebar"><button id="save" class="primary">Save HomeHub settings</button><button id="reboot">Reboot HomeHub</button><span id="message"></span></section>
-</main><script src="setup.js"></script></body></html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#17110c">
+  <title>HomeHub Setup</title>
+  <link rel="stylesheet" href="setup.css">
+  <link rel="stylesheet" href="setup-v6.css">
+</head>
+<body>
+  <main>
+    <header><div class="logo">H</div><div><h1>HomeHub Setup</h1><p>Calendar and tasks appliance</p></div><span id="connection">Loading</span></header>
+    <section class="hero"><h2>Configure this HomeHub</h2><p>Changes save directly to the appliance. Google passwords are never entered or stored here.</p></section>
+    <section class="card"><h2>Setup progress</h2><div id="progress" class="progress"></div></section>
+    <section class="card">
+      <h2>Google Calendar and Tasks</h2>
+      <div class="statusline"><span id="googleStatus">Not connected</span></div>
+      <label class="upload">1. Upload Google OAuth credentials JSON<input id="credentials" type="file" accept="application/json,.json"></label>
+      <button id="uploadCredentials">Upload credentials</button>
+      <div class="google-connect"><button id="connectGoogle" class="primary">2. Connect Google</button><p id="googleHelp">For Google approval, open this setup portal through the one-time secure tunnel shown below.</p><code id="tunnelCommand"></code></div>
+    </section>
+    <section class="card">
+      <h2>Calendars and task lists</h2>
+      <p>Choose what appears, then choose where new events and tasks are created.</p>
+      <div class="choice-grid"><div><h3>Visible calendars</h3><div id="calendarChoices" class="choices"></div><label>New events go to<select id="defaultCalendar"></select></label></div><div><h3>Visible task lists</h3><div id="taskChoices" class="choices"></div><label>New tasks go to<select id="defaultTaskList"></select></label></div></div>
+    </section>
+    <section class="card"><h2>HomeHub</h2><div class="grid"><label>Name<input id="title" value="HomeHub"></label><label>Subtitle<input id="subtitle" value=""></label><label>Timezone<input id="timezone" value="Australia/Brisbane"></label></div></section>
+    <section class="card"><h2>Screen power</h2><div class="grid"><label class="check"><input id="sleepEnabled" type="checkbox" checked> Night-time screen off</label><label>Screen off<input id="sleepOff" type="time" value="22:00"></label><label>Screen on<input id="sleepOn" type="time" value="06:00"></label></div></section>
+    <section class="card"><h2>Countdown</h2><div class="grid"><label class="check"><input id="milestoneEnabled" type="checkbox"> Show countdown</label><label>Label<input id="milestoneLabel"></label><label>Date<input id="milestoneDate" type="date"></label></div></section>
+    <section class="card"><h2>System update</h2><p id="versionStatus">Checking installed version</p><div class="actions"><button id="checkUpdate">Check for update</button><button id="installUpdate" class="primary" disabled>Install verified update</button><button id="restartDisplay">Restart display</button></div><p class="fineprint">Only signed, versioned HomeHub releases are accepted. Failed health checks roll back automatically.</p></section>
+    <section class="savebar"><button id="save" class="primary">Save HomeHub settings</button><button id="reboot">Reboot HomeHub</button><span id="message"></span></section>
+  </main>
+  <script src="setup.js"></script>
+</body>
+</html>

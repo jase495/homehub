@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=HomeHub
+Description=Quiet HomeHub appliance boot screen
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/homehub
+ScriptFile=/usr/share/plymouth/themes/homehub/homehub.script

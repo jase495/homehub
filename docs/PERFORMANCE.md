@@ -1,21 +1,21 @@
 # Raspberry Pi 3 performance profile
 
-The v5 UI's full-screen backdrop blur, large shadows, animated composite layers,
-fresh WebKit QR request and persistent cache could make a simple settings tap
-take several seconds on a Pi 3.
+HomeHub 1.1 removes the main sources of touch latency found in 1.0:
 
-v6 applies these controls:
+- events are indexed by day once instead of rescanned 42 times per render;
+- one delegated pointer handler replaces per-cell and per-event listeners;
+- month navigation and modal opening perform no network request;
+- task completion and event/task creation update the screen optimistically;
+- Google writes no longer trigger a full synchronous Calendar and Tasks sync;
+- weather polling and rendering are removed;
+- the stylesheet uses solid surfaces with no blur, animation or gradients;
+- the footer is removed, giving the calendar more height with less paint work;
+- the setup QR is cached and loaded only after Settings is already visible;
+- Cog/WPE receives a fresh temporary cache each boot.
 
-- no `backdrop-filter` on full-screen modals;
-- smaller static shadows and minimal transitions;
-- `touch-action: manipulation` on touch targets;
-- QR encoded once per setup URL and delivered inline as SVG;
-- fresh Cog/WPE runtime cache on every kiosk boot;
-- cache-busted dashboard URL by application version;
-- background Google/weather sync independent of cached API reads;
-- no desktop environment or Chromium.
+The performance contract is immediate visual response for navigation, day
+opening, Settings, task completion and event submission. Google confirmation
+still depends on the network, but it happens after the interface has responded.
 
-The target is visual response on the next rendered frame for local modal and
-navigation actions. Google writes still depend on network latency and therefore
-show an explicit busy state.
-
+For repeatable testing, use a populated month and verify 20 consecutive taps on
+Previous, Next, Settings and day cells. No action should need a second press.

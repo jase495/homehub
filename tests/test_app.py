@@ -20,3 +20,18 @@ def test_health_and_inline_svg_qr():
 def test_setup_api_rejects_missing_token():
     client = create_app().test_client()
     assert client.get("/api/setup/status").status_code == 403
+
+
+def test_weather_discovery_endpoint_has_been_removed():
+    client = create_app().test_client()
+    assert client.get("/api/setup/scan-weather").status_code == 404
+
+
+def test_event_update_route(monkeypatch):
+    monkeypatch.setattr(
+        "homehub.app.engine.update_event",
+        lambda event_id, payload: {"events": [{"id": event_id, "title": payload["title"]}]},
+    )
+    response = create_app().test_client().put("/api/event/event-1", json={"title": "Changed"})
+    assert response.status_code == 200
+    assert response.get_json()["data"]["events"][0] == {"id": "event-1", "title": "Changed"}

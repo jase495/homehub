@@ -1,13 +1,13 @@
 [Unit]
 Description=HomeHub touch appliance display
-After=systemd-user-sessions.service homehub-server.service
+After=systemd-user-sessions.service homehub-server.service plymouth-quit.service
 Requires=homehub-server.service
 Conflicts=getty@tty1.service
 StartLimitIntervalSec=0
 
 [Service]
 Type=simple
-ExecStartPre=/bin/sleep 2
+ExecStartPre=/bin/sleep 1
 ExecStart=/usr/bin/cage -- /opt/homehub/current/installer/kiosk-session.sh
 Restart=always
 RestartSec=2
@@ -16,6 +16,8 @@ TTYPath=/dev/tty1
 TTYReset=yes
 TTYVHangup=yes
 TTYVTDisallocate=yes
+StandardOutput=journal
+StandardError=journal
 Environment=XDG_RUNTIME_DIR=/run/homehub-kiosk
 Environment=HOMEHUB_APP_ROOT=/opt/homehub/current
 Environment=HOMEHUB_STATE_DIR=/var/lib/homehub

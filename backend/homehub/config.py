@@ -36,18 +36,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "off": "22:00",
         "on": "06:00",
     },
-    "weather": {
-        "enabled": True,
-        "source": "disabled",
-        "refresh_seconds": 300,
-        "ecowitt_local": {"gateway_url": ""},
-        "ecowitt_cloud": {
-            "application_key": "",
-            "api_key": "",
-            "mac": "",
-            "base_url": "https://api.ecowitt.net/api/v3/device/real_time",
-        },
-    },
     "updates": {
         "repository": "jase495/homehub",
         "channel": "stable",
