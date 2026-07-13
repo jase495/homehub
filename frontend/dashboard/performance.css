@@ -1,9 +1,0 @@
-/* Final overrides for Raspberry Pi 3. Keep these in a separate last-loaded file
-   so later theme rules cannot accidentally restore expensive GPU effects. */
-html{touch-action:manipulation}
-button,.day-cell{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
-.modal{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
-.home-mark{filter:none!important}
-.calendar-card,.weather-card,.tasks-card,.topbar,.modal-card{box-shadow:none!important}
-.day-cell{contain:layout paint style}
-.event-row,.task-row,.icon-button,.text-button,.action-button,.small-action{transition:none!important}

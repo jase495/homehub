@@ -1,4 +1,19 @@
-# Fresh v6 installation and legacy migration
+# Fresh installation and legacy migration
+
+## Upgrade from signed HomeHub 1.0.0
+
+Reflashing is not required. After the `1.1.0` GitHub Release is published:
+
+1. Open **Settings** on the touchscreen.
+2. Tap **Check for update**.
+3. Tap **Install 1.1.0**, then tap once more to confirm.
+4. Leave HomeHub powered while it verifies, installs and health-checks the release.
+5. When the calendar returns, reboot once so the quiet HomeHub boot theme and
+   console suppression take effect.
+
+The atomic updater preserves `/var/lib/homehub`, including Google credentials,
+tokens, selected calendars and task lists, screen schedule and cached data. It
+automatically restores 1.0.0 if the 1.1.0 server fails its health check.
 
 ## Recommended: fresh reflash
 
@@ -22,10 +37,13 @@ directory under `/var/backups`. It copies these into `/var/lib/homehub`:
 - `config.json`
 - `credentials.json`
 - `token.json`
-- `weather-extrema.json`
 - `www/data.json` as `cache.json`
 
 It then installs the release/current layout. The legacy backup is not deleted.
+
+HomeHub 1.1 ignores and removes legacy weather data from the live cache. Existing
+Google credentials, selected calendars, selected task lists and screen schedule
+remain intact.
 
 ## Rollback
 
@@ -37,4 +55,3 @@ sudo ln -sfn /opt/homehub/releases/PREVIOUS /opt/homehub/current
 sudo /opt/homehub/current/installer/activate.sh /opt/homehub/current
 sudo systemctl restart homehub-kiosk.service
 ```
-

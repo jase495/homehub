@@ -13,3 +13,4 @@ token.json
 config.json
 update-signing-private.key
 release-signing/
+work/

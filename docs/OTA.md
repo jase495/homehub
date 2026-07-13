@@ -25,6 +25,9 @@ Release. If the signing secret is absent, release publication fails closed.
 
 ## Appliance update transaction
 
+Updates can be checked and installed from either the touchscreen Settings panel
+or the QR setup portal. Both controls use the same verification transaction:
+
 1. Read the latest GitHub Release metadata.
 2. Download and verify `manifest.sig` with the enrolled public key.
 3. Download the named artifact and verify its signed SHA-256.
@@ -32,4 +35,3 @@ Release. If the signing secret is absent, release publication fails closed.
 5. Atomically switch `/opt/homehub/current`.
 6. Restart the server and require matching version health within 45 seconds.
 7. Restart the kiosk on success, or restore the previous link on failure.
-

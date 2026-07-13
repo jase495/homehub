@@ -9,21 +9,19 @@ import socket
 import subprocess
 import threading
 import time
-from functools import lru_cache
+from functools import lru_cache, wraps
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 import qrcode
 import qrcode.image.svg
-from flask import Flask, Response, jsonify, redirect, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory
 from google_auth_oauthlib.flow import Flow
 
 from . import VERSION
 from . import engine
 from .config import CREDENTIALS_PATH, PACKAGE_ROOT, STATE_DIR, TOKEN_PATH, load_config, save_config
-from .discovery import local_ipv4, scan_weather_lan
+from .network import local_ipv4
 from .updater import check_release
 
 SCOPES = engine.SCOPES
@@ -56,11 +54,12 @@ def token_authorized() -> bool:
 
 
 def require_setup(function):
+    @wraps(function)
     def wrapped(*args, **kwargs):
         if not token_authorized():
             return jsonify(ok=False, error="Invalid or missing setup token"), 403
         return function(*args, **kwargs)
-    wrapped.__name__ = function.__name__
+
     return wrapped
 
 
@@ -74,9 +73,6 @@ class OAuthCallback(BaseHTTPRequestHandler):
             with OAUTH_LOCK:
                 if OAUTH_FLOW is None:
                     raise RuntimeError("No Google authorization is pending")
-                # Desktop OAuth loopback callbacks are explicitly HTTP. Restrict
-                # the oauthlib exception to this callback instead of enabling it
-                # for the whole application.
                 os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
                 OAUTH_FLOW.fetch_token(authorization_response=f"http://localhost:8765{self.path}")
                 STATE_DIR.mkdir(parents=True, exist_ok=True)
@@ -90,7 +86,7 @@ class OAuthCallback(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             threading.Thread(target=engine.sync_data, daemon=True).start()
-        except Exception as exc:
+        except Exception as exc:  # pragma: no cover - exercised through Google callback
             body = f"<h1>Connection failed</h1><pre>{exc}</pre>".encode()
             self.send_response(400)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -105,12 +101,22 @@ def start_google_oauth() -> str:
         raise FileNotFoundError("Upload the Google OAuth credentials JSON first")
     with OAUTH_LOCK:
         OAUTH_FLOW = Flow.from_client_secrets_file(
-            str(CREDENTIALS_PATH), scopes=SCOPES, redirect_uri="http://localhost:8765/oauth2callback"
+            str(CREDENTIALS_PATH),
+            scopes=SCOPES,
+            redirect_uri="http://localhost:8765/oauth2callback",
         )
-        url, _ = OAUTH_FLOW.authorization_url(access_type="offline", prompt="consent", include_granted_scopes="true")
+        url, _ = OAUTH_FLOW.authorization_url(
+            access_type="offline",
+            prompt="consent",
+            include_granted_scopes="true",
+        )
         if OAUTH_SERVER is None:
             OAUTH_SERVER = HTTPServer(("127.0.0.1", 8765), OAuthCallback)
-            threading.Thread(target=OAUTH_SERVER.serve_forever, daemon=True, name="homehub-oauth").start()
+            threading.Thread(
+                target=OAUTH_SERVER.serve_forever,
+                daemon=True,
+                name="homehub-oauth",
+            ).start()
         return url
 
 
@@ -119,7 +125,7 @@ def create_app() -> Flask:
     app.config["MAX_CONTENT_LENGTH"] = 1_000_000
 
     @app.after_request
-    def no_cache(response: Response) -> Response:
+    def cache_policy(response: Response) -> Response:
         if request.path == "/" or request.path.endswith((".js", ".css", ".html")):
             response.headers["Cache-Control"] = "no-store, max-age=0"
         return response
@@ -150,14 +156,21 @@ def create_app() -> Flask:
 
     @app.get("/api/setup/screen")
     def setup_screen():
-        return jsonify(ok=True, url=setup_url(), qrSvg=setup_qr_svg_data(), ip=local_ipv4())
+        return jsonify(
+            ok=True,
+            url=setup_url(),
+            qrSvg=setup_qr_svg_data(),
+            ip=local_ipv4(),
+            token=load_config()["setup_token"],
+            version=VERSION,
+        )
 
     @app.get("/api/setup/status")
     @require_setup
     def setup_status():
-        cfg = load_config()
+        config = load_config()
         live = engine.current_data()
-        public = engine.public_config(cfg)
+        public = engine.public_config(config)
         public.update({
             "ok": True,
             "version": VERSION,
@@ -166,12 +179,14 @@ def create_app() -> Flask:
             "googleConnected": TOKEN_PATH.exists(),
             "credentialsUploaded": CREDENTIALS_PATH.exists(),
             "setupUrl": setup_url(),
-            "weather": cfg.get("weather", {}),
-            "calendar_ids": cfg.get("calendar_ids", []),
-            "task_lists": cfg.get("task_lists", []),
+            "calendar_ids": config.get("calendar_ids", []),
+            "event_calendar_id": config.get("event_calendar_id", "primary"),
+            "task_lists": config.get("task_lists", []),
+            "default_task_list": config.get("default_task_list", ""),
             "calendars": live.get("calendars", []),
+            "writableCalendars": live.get("writableCalendars", []),
             "taskLists": live.get("taskLists", []),
-            "updateConfig": cfg.get("updates", {}),
+            "updateConfig": config.get("updates", {}),
         })
         return jsonify(public)
 
@@ -194,18 +209,23 @@ def create_app() -> Flask:
         except Exception as exc:
             return jsonify(ok=False, error=str(exc)), 400
 
-    @app.get("/api/setup/scan-weather")
-    @require_setup
-    def scan_weather():
-        return jsonify(ok=True, stations=scan_weather_lan(), beta=True)
-
     @app.post("/api/setup/save")
     @require_setup
     def setup_save():
         payload = request.get_json(silent=True) or {}
-        allowed = {key: payload[key] for key in ("title", "subtitle", "timezone", "sleep", "milestone", "weather", "calendar_ids", "event_calendar_id", "task_lists", "default_task_list") if key in payload}
-        cfg = save_config(allowed)
-        return jsonify(ok=True, config=engine.public_config(cfg))
+        keys = (
+            "title",
+            "subtitle",
+            "timezone",
+            "sleep",
+            "milestone",
+            "calendar_ids",
+            "event_calendar_id",
+            "task_lists",
+            "default_task_list",
+        )
+        config = save_config({key: payload[key] for key in keys if key in payload})
+        return jsonify(ok=True, config=engine.public_config(config))
 
     @app.post("/api/setup/restart-display")
     @require_setup
@@ -218,7 +238,12 @@ def create_app() -> Flask:
     def update_check():
         try:
             release = check_release()
-            return jsonify(ok=True, current=VERSION, available=bool(release), version=release.version if release else None)
+            return jsonify(
+                ok=True,
+                current=VERSION,
+                available=bool(release),
+                version=release.version if release else None,
+            )
         except Exception as exc:
             return jsonify(ok=False, error=str(exc)), 400
 
@@ -228,7 +253,6 @@ def create_app() -> Flask:
         version = str((request.get_json(silent=True) or {}).get("version", ""))
         if not version:
             return jsonify(ok=False, error="Choose a verified release first"), 400
-        unit = f"homehub-update-{int(time.time())}"
         subprocess.Popen(["sudo", "/usr/local/sbin/homehub-queue-update", version])
         return jsonify(ok=True, started=True, version=version), 202
 
@@ -241,7 +265,11 @@ def create_app() -> Flask:
     @app.post("/api/task/complete")
     def task_complete():
         payload = request.get_json(silent=True) or {}
-        return _engine_result(engine.complete_task, payload.get("taskListId", ""), payload.get("taskId", ""))
+        return _engine_result(
+            engine.complete_task,
+            payload.get("taskListId", ""),
+            payload.get("taskId", ""),
+        )
 
     @app.post("/api/task")
     def task_create():
@@ -250,6 +278,10 @@ def create_app() -> Flask:
     @app.post("/api/event")
     def event_create():
         return _engine_result(engine.create_event, request.get_json(silent=True) or {}, created=True)
+
+    @app.put("/api/event/<event_id>")
+    def event_update(event_id: str):
+        return _engine_result(engine.update_event, event_id, request.get_json(silent=True) or {})
 
     @app.post("/api/settings")
     def settings():
