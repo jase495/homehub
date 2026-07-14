@@ -5,6 +5,7 @@ ROOT="${1:-/opt/homehub/current}"
 
 install -m 0755 "$ROOT/installer/homehub-apply-update" /usr/local/sbin/homehub-apply-update
 install -m 0755 "$ROOT/installer/homehub-queue-update" /usr/local/sbin/homehub-queue-update
+install -m 0755 "$ROOT/installer/homehub-control" /usr/local/sbin/homehub-control
 install -m 0644 "$ROOT/installer/systemd/homehub-server.service" /etc/systemd/system/homehub-server.service
 install -m 0644 "$ROOT/installer/systemd/homehub-kiosk.service" /etc/systemd/system/homehub-kiosk.service
 install -d -m 0755 /etc/homehub
@@ -14,8 +15,8 @@ fi
 
 cat >/etc/sudoers.d/homehub-appliance <<'EOF'
 homehub ALL=(root) NOPASSWD: /usr/local/sbin/homehub-queue-update *
-homehub ALL=(root) NOPASSWD: /bin/systemctl restart homehub-kiosk.service, /usr/bin/systemctl restart homehub-kiosk.service
-homehub ALL=(root) NOPASSWD: /sbin/reboot, /usr/sbin/reboot
+homehub ALL=(root) NOPASSWD: /usr/local/sbin/homehub-control restart-display
+homehub ALL=(root) NOPASSWD: /usr/local/sbin/homehub-control reboot
 EOF
 chmod 0440 /etc/sudoers.d/homehub-appliance
 
@@ -50,6 +51,13 @@ if command -v plymouth-set-default-theme >/dev/null 2>&1; then
   install -d -m 0755 "$THEME"
   install -m 0644 "$ROOT/installer/plymouth/homehub.plymouth" "$THEME/homehub.plymouth"
   install -m 0644 "$ROOT/installer/plymouth/homehub.script" "$THEME/homehub.script"
+  install -m 0644 "$ROOT/installer/plymouth/homehub-logo.svg" "$THEME/homehub-logo.svg"
+  if command -v rsvg-convert >/dev/null 2>&1; then
+    rsvg-convert --width 720 --height 320 \
+      --output "$THEME/homehub-logo.png" "$THEME/homehub-logo.svg"
+  else
+    echo "Warning: vector boot-logo renderer is unavailable." >&2
+  fi
   if plymouth-set-default-theme homehub; then
     update-initramfs -u || echo "Warning: initramfs refresh failed; HomeHub will still boot normally." >&2
   else

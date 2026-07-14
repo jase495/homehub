@@ -21,6 +21,14 @@
 }
 
 html,
+body,
+body *,
+body *::before,
+body *::after {
+  cursor: none !important;
+}
+
+html,
 body {
   width: 100%;
   height: 100%;
@@ -28,7 +36,6 @@ body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  cursor: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -79,7 +86,7 @@ button.primary:active {
 
 .topbar {
   display: grid;
-  grid-template-columns: 210px 220px minmax(210px, 1fr) auto auto 175px;
+  grid-template-columns: 220px 220px minmax(210px, 1fr) auto auto 260px;
   align-items: center;
   gap: 14px;
   padding: 14px 18px;
@@ -130,6 +137,13 @@ button.primary:active {
   white-space: nowrap;
 }
 
+.brand-subtitle {
+  max-width: 155px;
+  overflow: hidden;
+  color: var(--gold) !important;
+  text-overflow: ellipsis;
+}
+
 .status-dot {
   width: 8px;
   height: 8px;
@@ -137,11 +151,11 @@ button.primary:active {
   background: var(--green);
 }
 
-.brand p.stale .status-dot {
+.sync-status.stale .status-dot {
   background: var(--gold);
 }
 
-.brand p.offline .status-dot {
+.sync-status.offline .status-dot {
   background: var(--red);
 }
 
@@ -218,22 +232,41 @@ button.primary:active {
   min-width: 105px;
 }
 
-.clock {
+.today-date {
   text-align: right;
   white-space: nowrap;
 }
 
-.clock strong {
+.today-date strong {
   display: block;
-  font-size: 30px;
+  overflow: hidden;
+  font-size: 25px;
   line-height: 1;
+  letter-spacing: -.4px;
+  text-overflow: ellipsis;
 }
 
-.clock span {
+.today-date span {
   display: block;
-  margin-top: 7px;
+  margin-top: 8px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
+}
+
+.today-date b {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.today-date i {
+  margin-left: 7px;
+  font-style: normal;
+}
+
+.sync-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .main-grid {
@@ -804,19 +837,56 @@ select option {
 }
 
 .settings-card {
-  width: min(1160px, 96vw);
+  width: min(1320px, 97vw);
 }
 
 .settings-grid {
   display: grid;
   min-height: 0;
-  grid-template-columns: .9fr 1.1fr;
+  grid-template-columns: .72fr 1.28fr;
   gap: 14px;
   padding: 16px;
 }
 
 .settings-stack {
   display: grid;
+  gap: 14px;
+}
+
+.method-row {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.method-row .select-wrap::after {
+  top: 16px;
+}
+
+.method-row select {
+  min-height: 46px;
+}
+
+.power-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.power-actions button {
+  min-height: 44px;
+}
+
+.system-section {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 14px;
 }
 
@@ -962,6 +1032,93 @@ select option {
   min-width: 0;
 }
 
+.power-card {
+  width: min(760px, 94vw);
+}
+
+.power-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 18px;
+}
+
+.power-choice-grid button {
+  display: grid;
+  min-height: 145px;
+  align-content: center;
+  gap: 9px;
+  padding: 18px;
+}
+
+.power-choice-grid strong {
+  color: var(--gold);
+  font-size: 20px;
+}
+
+.power-choice-grid span,
+.power-help {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.power-help {
+  margin: 0;
+  padding: 0 20px 20px;
+  text-align: center;
+}
+
+.resume-overlay {
+  z-index: 70;
+  background: #0d0b09;
+}
+
+.resume-card {
+  display: grid;
+  width: min(520px, 90vw);
+  justify-items: center;
+  gap: 16px;
+  text-align: center;
+}
+
+.resume-card .brand-mark {
+  width: 68px;
+  height: 68px;
+  font-size: 34px;
+}
+
+.resume-card p {
+  margin: 8px 0 0;
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+.resume-card h2 {
+  margin: 0 0 8px;
+  font-size: 36px;
+}
+
+.resume-card button {
+  width: 260px;
+  min-height: 58px;
+}
+
+.update-prompt-card {
+  width: min(650px, 92vw);
+}
+
+.update-prompt-card > p {
+  margin: 0;
+  padding: 22px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 24px;
+}
+
 .toast {
   position: fixed;
   z-index: 50;
@@ -983,7 +1140,7 @@ select option {
 
 @media (max-width: 1550px) {
   .topbar {
-    grid-template-columns: 185px 205px minmax(170px, 1fr) auto auto 145px;
+    grid-template-columns: 185px 205px minmax(170px, 1fr) auto auto 190px;
     gap: 9px;
     padding-inline: 12px;
   }
@@ -1000,6 +1157,14 @@ select option {
 
   .month-title {
     font-size: 29px;
+  }
+
+  .today-date strong {
+    font-size: 20px;
+  }
+
+  .today-date i {
+    display: none;
   }
 
   .header-info {
@@ -1053,6 +1218,20 @@ select option {
   .modal-header {
     min-height: 66px;
     padding-block: 10px;
+  }
+
+  .settings-grid {
+    overflow-y: auto;
+  }
+
+  .qr-shell {
+    width: 180px;
+    height: 180px;
+  }
+
+  .qr-shell img {
+    width: 164px;
+    height: 164px;
   }
 
   .keyboard-key {

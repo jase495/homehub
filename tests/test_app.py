@@ -35,3 +35,24 @@ def test_event_update_route(monkeypatch):
     response = create_app().test_client().put("/api/event/event-1", json={"title": "Changed"})
     assert response.status_code == 200
     assert response.get_json()["data"]["events"][0] == {"id": "event-1", "title": "Changed"}
+
+
+def test_appliance_controls_report_real_privileged_handoff(monkeypatch):
+    commands = []
+    monkeypatch.setattr("homehub.app.run_privileged", lambda *args: commands.append(args))
+    client = create_app().test_client()
+    token = client.get("/api/setup/screen").get_json()["token"]
+    assert client.post(f"/api/setup/restart-display?token={token}", json={}).status_code == 200
+    assert client.post(f"/api/setup/reboot?token={token}", json={}).status_code == 200
+    assert commands == [
+        ("/usr/local/sbin/homehub-control", "restart-display"),
+        ("/usr/local/sbin/homehub-control", "reboot"),
+    ]
+
+
+def test_display_control_route(monkeypatch):
+    monkeypatch.setattr("homehub.app.request_display_action", lambda action: {"mode": action})
+    monkeypatch.setattr("homehub.app.display_status", lambda: {"ok": True, "mode": "away"})
+    response = create_app().test_client().post("/api/display/control", json={"action": "away"})
+    assert response.status_code == 200
+    assert response.get_json()["display"]["mode"] == "away"

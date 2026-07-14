@@ -36,3 +36,13 @@ SVG is cached by setup URL.
 - OTA accepts only a manifest signed by the enrolled Ed25519 public key and
   verifies the artifact SHA-256 named by that manifest.
 - The app runs unprivileged. Narrow root helpers perform update and reboot work.
+
+## Display power state
+
+The display worker runs inside Cage's Wayland session. Automatic mode first
+tries the output-power protocol (`wlopm`) and falls back to KMS output management
+(`wlr-randr`), recording the active method, outputs and any error in
+`/var/lib/homehub/display-status.json`. Household intent is stored separately in
+`display-state.json` so Away mode survives reboots. Sleep now expires at the next
+configured wake time; Away never expires. A touch while the output is asleep
+temporarily wakes it to a Resume Home screen.

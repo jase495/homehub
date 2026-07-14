@@ -26,7 +26,9 @@ Release. If the signing secret is absent, release publication fails closed.
 ## Appliance update transaction
 
 Updates can be checked and installed from either the touchscreen Settings panel
-or the QR setup portal. Both controls use the same verification transaction:
+or the QR setup portal. HomeHub checks every six hours and offers **Update now**
+or **Later** on the appliance when a newer signed release is found. Both controls
+use the same verification transaction:
 
 1. Read the latest GitHub Release metadata.
 2. Download and verify `manifest.sig` with the enrolled public key.
@@ -35,3 +37,7 @@ or the QR setup portal. Both controls use the same verification transaction:
 5. Atomically switch `/opt/homehub/current`.
 6. Restart the server and require matching version health within 45 seconds.
 7. Restart the kiosk on success, or restore the previous link on failure.
+
+HomeHub 1.1's server sandbox accidentally blocked its own narrowly scoped update
+helper. The one-time move from 1.1.0 to 1.2.0 therefore uses the SSH command in
+the migration guide. All later releases use the repaired on-screen transaction.

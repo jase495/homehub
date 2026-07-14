@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import tarfile
 from pathlib import Path
 
@@ -17,6 +18,20 @@ def include(path: Path) -> bool:
         part in EXCLUDED or part.endswith((".pyc", ".egg-info"))
         for part in path.relative_to(ROOT).parts
     )
+
+
+def release_files():
+    """Yield source files without descending into excluded development trees."""
+    for directory, dirnames, filenames in os.walk(ROOT):
+        dirnames[:] = sorted(
+            name for name in dirnames
+            if name not in EXCLUDED and not name.endswith(".egg-info")
+        )
+        base = Path(directory)
+        for filename in sorted(filenames):
+            path = base / filename
+            if include(path):
+                yield path
 
 
 def release_metadata(info: tarfile.TarInfo) -> tarfile.TarInfo:
@@ -37,14 +52,13 @@ def main() -> None:
     DIST.mkdir(exist_ok=True)
     archive = DIST / ARTIFACT
     with tarfile.open(archive, "w:gz", format=tarfile.PAX_FORMAT) as tar:
-        for path in sorted(ROOT.rglob("*")):
-            if path.is_file() and include(path):
-                tar.add(
-                    path,
-                    arcname=Path(f"homehub-{VERSION}") / path.relative_to(ROOT),
-                    recursive=False,
-                    filter=release_metadata,
-                )
+        for path in release_files():
+            tar.add(
+                path,
+                arcname=Path(f"homehub-{VERSION}") / path.relative_to(ROOT),
+                recursive=False,
+                filter=release_metadata,
+            )
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     manifest = {"artifact": ARTIFACT, "schema": 1, "sha256": digest, "version": VERSION}
     (DIST / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")

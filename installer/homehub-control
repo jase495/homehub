@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ACTION="${1:-}"
+case "$ACTION" in
+  restart-display)
+    /usr/bin/systemd-run --quiet --collect --on-active=1s \
+      --unit=homehub-restart-display /usr/bin/systemctl restart homehub-kiosk.service
+    ;;
+  reboot)
+    /usr/bin/systemd-run --quiet --collect --on-active=2s \
+      --unit=homehub-reboot /usr/bin/systemctl reboot
+    ;;
+  *)
+    echo "Usage: homehub-control restart-display|reboot" >&2
+    exit 2
+    ;;
+esac

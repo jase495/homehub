@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "homehub-appliance"
-version = "1.1.0"
+version = "1.2.0"
 description = "Fast touch-first family calendar and tasks appliance for Raspberry Pi"
 readme = "README.md"
 requires-python = ">=3.11"

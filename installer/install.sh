@@ -48,8 +48,8 @@ retry() {
 echo "Installing HomeHub ${VERSION}"
 retry apt-get update
 retry env DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  cog cage wlopm jq rsync avahi-daemon python3 python3-venv python3-pip \
-  ca-certificates curl plymouth plymouth-themes
+  cog cage wlopm wlr-randr jq rsync avahi-daemon python3 python3-venv python3-pip \
+  ca-certificates curl plymouth plymouth-themes librsvg2-bin
 
 # Resolve and download the complete dependency set before taking an installed
 # appliance offline. If Wi-Fi drops here, the old HomeHub remains untouched.
@@ -91,7 +91,9 @@ STAGING="$ROOT/releases/.${VERSION}.installing"
 rm -rf "$STAGING"
 install -d -m 0755 "$STAGING"
 rsync -a --delete --exclude '.git' --exclude '.venv' --exclude 'dist' --exclude 'work' "$SOURCE/" "$STAGING/"
-chmod 0755 "$STAGING/installer/"*.sh "$STAGING/installer/kiosk-session.sh"
+chmod 0755 "$STAGING/installer/"*.sh "$STAGING/installer/kiosk-session.sh" \
+  "$STAGING/installer/homehub-control" "$STAGING/installer/homehub-apply-update" \
+  "$STAGING/installer/homehub-queue-update"
 "$STAGING/installer/preflight.sh" "$STAGING"
 
 python3 -m venv "$ROOT/venv"

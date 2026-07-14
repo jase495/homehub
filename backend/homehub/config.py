@@ -14,6 +14,9 @@ CONFIG_PATH = STATE_DIR / "config.json"
 CACHE_PATH = STATE_DIR / "cache.json"
 CREDENTIALS_PATH = STATE_DIR / "credentials.json"
 TOKEN_PATH = STATE_DIR / "token.json"
+DISPLAY_STATE_PATH = STATE_DIR / "display-state.json"
+DISPLAY_STATUS_PATH = STATE_DIR / "display-status.json"
+UPDATE_STATUS_PATH = STATE_DIR / "update-status.json"
 
 DEFAULT_CONFIG: dict[str, Any] = {
     # These keys intentionally retain the v5 schema so an installed appliance
@@ -35,6 +38,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "enabled": True,
         "off": "22:00",
         "on": "06:00",
+        "method": "auto",
     },
     "updates": {
         "repository": "jase495/homehub",

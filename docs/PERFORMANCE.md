@@ -1,6 +1,6 @@
 # Raspberry Pi 3 performance profile
 
-HomeHub 1.1 removes the main sources of touch latency found in 1.0:
+HomeHub 1.2 preserves the performance work introduced in 1.1:
 
 - events are indexed by day once instead of rescanned 42 times per render;
 - one delegated pointer handler replaces per-cell and per-event listeners;

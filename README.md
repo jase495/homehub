@@ -5,9 +5,9 @@ touch-first family calendar and Google Tasks appliance. It boots Raspberry Pi
 OS Lite into Cage/Cog, keeps a local offline cache, sleeps the display on a
 schedule, and exposes a phone-friendly private setup portal.
 
-Version `1.1.0` is the calendar-first performance release. It removes weather,
-reclaims that space for tasks, adds a dense month view and daily agenda, supports
-event editing, and makes local touch actions immediate on Pi 3 hardware.
+Version `1.2.0` is the appliance-reliability release. It retains the immediate
+Pi 3 touch response while making updates, reboot, display restart and screen
+power observable and testable instead of silently assuming they worked.
 
 ## Included
 
@@ -17,10 +17,13 @@ event editing, and makes local touch actions immediate on Pi 3 hardware.
 - Google Calendar read/create/edit and Google Tasks list/create/complete
 - Immediate month navigation, modal opening and optimistic cloud writes
 - On-screen and phone/PC access to signed OTA updates
-- Inline SVG setup QR, visible sleep selectors and hidden mouse cursor
-- Scheduled Wayland display power control
+- Prominent current date, smaller time and a visible household subtitle
+- Inline SVG setup QR, visible sleep selectors and globally hidden mouse cursor
+- Automatic, Wayland and KMS screen-power methods with a 10-second test
+- Home, Sleep now and persistent Away modes with touch-to-preview resume
+- Six-hour signed update checks with Update now or Later notification
 - Atomic JSON cache writes and offline-state display
-- Quiet Plymouth boot screen, systemd services and hardened Pi installer
+- High-resolution vector-derived Plymouth boot screen and hardened Pi installer
 - Versioned GitHub Release artifacts with Ed25519 verification and rollback
 
 ## Important limitation

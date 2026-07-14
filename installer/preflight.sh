@@ -13,3 +13,11 @@ grep -q 'id="checkUpdate"' "$ROOT/frontend/dashboard/index.html"
 grep -q 'def update_event' "$ROOT/backend/homehub/engine.py"
 test -f "$ROOT/installer/configure-appliance.sh"
 test -f "$ROOT/installer/plymouth/homehub.script"
+test -f "$ROOT/installer/plymouth/homehub-logo.svg"
+test -f "$ROOT/installer/homehub-control"
+python3 - "$ROOT/installer/plymouth/homehub-logo.svg" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+ET.parse(sys.argv[1])
+PY

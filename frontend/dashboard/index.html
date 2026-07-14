@@ -14,7 +14,7 @@
         <span class="brand-mark">H</span>
         <div>
           <h1 id="brandTitle">HomeHub</h1>
-          <p id="syncStatus"><span class="status-dot"></span>Starting</p>
+          <p id="brandSubtitle" class="brand-subtitle">Calendar &amp; Tasks</p>
         </div>
       </div>
 
@@ -28,17 +28,19 @@
 
       <div class="header-info">
         <span id="milestone" class="milestone hidden"></span>
+        <span id="syncStatus" class="sync-status"><span class="status-dot"></span>Starting</span>
         <span id="sleepSummary" class="sleep-summary"></span>
       </div>
 
       <div class="top-actions">
         <button id="addEventButton" class="action-button primary">+ Event</button>
+        <button id="powerButton" class="action-button">Power</button>
         <button id="settingsButton" class="action-button">Settings</button>
       </div>
 
-      <div class="clock" aria-live="off">
-        <strong id="clockTime">--:--</strong>
-        <span id="clockDate">Loading</span>
+      <div class="today-date" aria-live="off">
+        <strong id="clockDate">Loading date</strong>
+        <span><b id="clockTime">--:--</b><i id="clockYear"></i></span>
       </div>
     </header>
 
@@ -146,13 +148,15 @@
         </section>
         <div class="settings-stack">
           <section class="settings-section">
-            <h3>Screen schedule</h3>
+            <div class="version-line"><div><h3>Screen power</h3><p id="displayStatus">Checking display controller</p></div><span id="powerModeBadge" class="version-badge">Home</span></div>
             <label class="switch-row"><span>Night-time screen off</span><input id="sleepEnabled" type="checkbox"><span class="switch"></span></label>
             <div class="time-grid">
               <label><span>Screen off</span><span class="select-wrap"><select id="sleepOff"></select></span></label>
               <label><span>Screen on</span><span class="select-wrap"><select id="sleepOn"></select></span></label>
             </div>
-            <button id="saveSleep" class="primary wide">Save schedule</button>
+            <label class="method-row"><span>Power method</span><span class="select-wrap"><select id="displayMethod"><option value="auto">Automatic (recommended)</option><option value="wlopm">Wayland screen power</option><option value="wlr-randr">KMS display output</option></select></span></label>
+            <div class="update-actions"><button id="saveSleep" class="primary wide">Save schedule</button><button id="testDisplay" class="wide">Test off for 10 seconds</button></div>
+            <div class="power-actions"><button data-display-action="home">Home</button><button data-display-action="sleep_now">Sleep now</button><button data-display-action="away">Away</button></div>
           </section>
           <section class="settings-section update-section">
             <div class="version-line"><div><h3>Software update</h3><p id="versionText">Installed version</p></div><span id="updateBadge" class="version-badge">Current</span></div>
@@ -162,8 +166,42 @@
               <button id="installUpdate" class="primary wide hidden">Install update</button>
             </div>
           </section>
+          <section class="settings-section system-section">
+            <div><h3>System</h3><p>Restart only the interface, or safely reboot the whole appliance.</p></div>
+            <div class="update-actions"><button id="restartDisplay" class="wide">Restart display</button><button id="rebootHomeHub" class="wide">Reboot HomeHub</button></div>
+          </section>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section id="powerModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card power-card">
+      <header class="modal-header"><div><p>HomeHub</p><h2>Screen power</h2></div><button class="close-button" data-close="powerModal">Close</button></header>
+      <div class="power-choice-grid">
+        <button data-display-action="home"><strong>Home</strong><span>Resume the normal daily schedule</span></button>
+        <button data-display-action="sleep_now"><strong>Sleep now</strong><span>Off until the usual morning wake time</span></button>
+        <button data-display-action="away"><strong>Away</strong><span>Stay off every day until you return</span></button>
+      </div>
+      <p class="power-help">When sleeping or away, touch the screen to preview HomeHub and choose Resume Home.</p>
+    </div>
+  </section>
+
+  <section id="resumeOverlay" class="modal resume-overlay hidden" aria-hidden="true">
+    <div class="resume-card">
+      <span class="brand-mark">H</span>
+      <p id="resumeEyebrow">HomeHub is sleeping</p>
+      <h2 id="resumeTitle">Welcome back</h2>
+      <button id="resumeHome" class="primary">Resume Home</button>
+      <button id="keepSleeping">Keep screen off</button>
+    </div>
+  </section>
+
+  <section id="updatePrompt" class="modal hidden" aria-hidden="true">
+    <div class="modal-card update-prompt-card">
+      <header class="modal-header"><div><p>Software update</p><h2 id="updatePromptTitle">A new HomeHub is ready</h2></div></header>
+      <p id="updatePromptCopy">The update is signed and will roll back automatically if it is unhealthy.</p>
+      <div class="modal-actions"><button id="updateLater">Later</button><button id="updateNow" class="primary">Update now</button></div>
     </div>
   </section>
 
