@@ -17,6 +17,8 @@ jobs:
       - run: pytest
       - run: node --check frontend/dashboard/app.js
       - run: node --check frontend/setup/setup.js
+      - run: bash -n installer/*.sh installer/homehub-apply-update installer/homehub-control installer/homehub-queue-update
+      - run: ./installer/preflight.sh .
       - run: python tools/build_release.py
       - run: python tools/sign_release.py
         env:

@@ -523,6 +523,10 @@ def update_settings(payload: dict[str, Any]) -> dict[str, Any]:
         except ValueError as exc:
             raise ValueError(f"Invalid {key} time") from exc
         sleep[key] = value
+    method = str(payload.get("method", sleep.get("method", "auto")))
+    if method not in {"auto", "wlopm", "wlr-randr"}:
+        raise ValueError("Invalid screen power method")
+    sleep["method"] = method
     config["sleep"] = sleep
     save_config(config)
     data = current_data()

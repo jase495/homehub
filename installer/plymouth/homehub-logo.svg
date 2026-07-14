@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="320" viewBox="0 0 720 320">
+  <rect width="720" height="320" fill="none"/>
+  <rect x="312" y="22" width="96" height="96" rx="27" fill="#211b16" stroke="#e2b66f" stroke-width="4"/>
+  <text x="360" y="91" text-anchor="middle" fill="#e2b66f"
+        font-family="DejaVu Sans, sans-serif" font-size="62" font-weight="700">H</text>
+  <text x="360" y="201" text-anchor="middle" fill="#f4eadb"
+        font-family="DejaVu Sans, sans-serif" font-size="64" font-weight="700" letter-spacing="-1">HomeHub</text>
+  <line x1="270" y1="228" x2="450" y2="228" stroke="#4a4036" stroke-width="2"/>
+  <text x="360" y="272" text-anchor="middle" fill="#b9aa98"
+        font-family="DejaVu Sans, sans-serif" font-size="24" font-weight="600" letter-spacing="4">STARTING</text>
+</svg>

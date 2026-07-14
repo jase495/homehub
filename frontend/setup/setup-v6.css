@@ -6,3 +6,4 @@
 .choices{display:grid;gap:8px}.choices label{display:flex;align-items:center;gap:10px;padding:10px;border:1px solid #49331f;border-radius:9px;color:var(--cream)}
 .choices input{width:22px;height:22px}.fineprint{font-size:13px}.statusline{margin-bottom:14px}
 @media(max-width:700px){.progress,.choice-grid{grid-template-columns:1fr}}
+.power-controls{margin-top:16px}.error-copy{color:var(--bad)!important}

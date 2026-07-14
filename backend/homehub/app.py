@@ -9,6 +9,7 @@ import socket
 import subprocess
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache, wraps
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
@@ -20,9 +21,19 @@ from google_auth_oauthlib.flow import Flow
 
 from . import VERSION
 from . import engine
-from .config import CREDENTIALS_PATH, PACKAGE_ROOT, STATE_DIR, TOKEN_PATH, load_config, save_config
+from .config import (
+    CREDENTIALS_PATH,
+    PACKAGE_ROOT,
+    STATE_DIR,
+    TOKEN_PATH,
+    UPDATE_STATUS_PATH,
+    atomic_write_json,
+    load_config,
+    save_config,
+)
+from .display_power import display_status, request_display_action
 from .network import local_ipv4
-from .updater import check_release
+from .updater import check_release, version_tuple
 
 SCOPES = engine.SCOPES
 DASHBOARD = PACKAGE_ROOT / "frontend" / "dashboard"
@@ -30,6 +41,7 @@ SETUP = PACKAGE_ROOT / "frontend" / "setup"
 OAUTH_LOCK = threading.Lock()
 OAUTH_FLOW: Flow | None = None
 OAUTH_SERVER: HTTPServer | None = None
+UPDATE_LOCK = threading.Lock()
 
 
 def setup_url() -> str:
@@ -46,6 +58,76 @@ def _qr_for_url(url: str) -> str:
 
 def setup_qr_svg_data() -> str:
     return _qr_for_url(setup_url())
+
+
+def _read_json(path, default: dict[str, Any]) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else dict(default)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return dict(default)
+
+
+def update_status() -> dict[str, Any]:
+    value = _read_json(UPDATE_STATUS_PATH, {})
+    available_version = str(value.get("version") or "")
+    available = bool(
+        value.get("available")
+        and available_version
+        and version_tuple(available_version) > version_tuple(VERSION)
+    )
+    dismissed_until = str(value.get("dismissedUntil") or "")
+    dismissed = False
+    if dismissed_until:
+        try:
+            dismissed = datetime.fromisoformat(dismissed_until).astimezone(timezone.utc) > datetime.now(timezone.utc)
+        except ValueError:
+            dismissed = False
+    return {
+        "ok": True,
+        "current": VERSION,
+        "available": available,
+        "version": available_version if available else None,
+        "checkedAt": value.get("checkedAt"),
+        "dismissed": dismissed,
+        "dismissedUntil": dismissed_until or None,
+        "error": value.get("error", ""),
+    }
+
+
+def refresh_update_status() -> dict[str, Any]:
+    with UPDATE_LOCK:
+        previous = _read_json(UPDATE_STATUS_PATH, {})
+        try:
+            release = check_release()
+            result = {
+                "available": bool(release),
+                "version": release.version if release else None,
+                "checkedAt": datetime.now(timezone.utc).isoformat(),
+                "dismissedUntil": previous.get("dismissedUntil"),
+                "error": "",
+            }
+        except Exception as exc:
+            result = {
+                **previous,
+                "checkedAt": datetime.now(timezone.utc).isoformat(),
+                "error": str(exc),
+            }
+        atomic_write_json(UPDATE_STATUS_PATH, result, mode=0o644)
+        return update_status()
+
+
+def run_privileged(*arguments: str) -> None:
+    result = subprocess.run(
+        ["sudo", "-n", *arguments],
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+    if result.returncode:
+        detail = (result.stderr or result.stdout or "privileged command failed").strip()
+        raise RuntimeError(detail)
 
 
 def token_authorized() -> bool:
@@ -187,6 +269,8 @@ def create_app() -> Flask:
             "writableCalendars": live.get("writableCalendars", []),
             "taskLists": live.get("taskLists", []),
             "updateConfig": config.get("updates", {}),
+            "display": display_status(),
+            "update": update_status(),
         })
         return jsonify(public)
 
@@ -223,6 +307,7 @@ def create_app() -> Flask:
             "event_calendar_id",
             "task_lists",
             "default_task_list",
+            "updates",
         )
         config = save_config({key: payload[key] for key in keys if key in payload})
         return jsonify(ok=True, config=engine.public_config(config))
@@ -230,22 +315,19 @@ def create_app() -> Flask:
     @app.post("/api/setup/restart-display")
     @require_setup
     def restart_display():
-        subprocess.Popen(["sudo", "systemctl", "restart", "homehub-kiosk.service"])
-        return jsonify(ok=True)
+        try:
+            run_privileged("/usr/local/sbin/homehub-control", "restart-display")
+            return jsonify(ok=True, scheduled=True)
+        except Exception as exc:
+            return jsonify(ok=False, error=str(exc)), 500
 
     @app.get("/api/setup/update/check")
     @require_setup
     def update_check():
-        try:
-            release = check_release()
-            return jsonify(
-                ok=True,
-                current=VERSION,
-                available=bool(release),
-                version=release.version if release else None,
-            )
-        except Exception as exc:
-            return jsonify(ok=False, error=str(exc)), 400
+        result = refresh_update_status()
+        if result.get("error"):
+            return jsonify(ok=False, error=result["error"]), 400
+        return jsonify(result)
 
     @app.post("/api/setup/update/install")
     @require_setup
@@ -253,14 +335,44 @@ def create_app() -> Flask:
         version = str((request.get_json(silent=True) or {}).get("version", ""))
         if not version:
             return jsonify(ok=False, error="Choose a verified release first"), 400
-        subprocess.Popen(["sudo", "/usr/local/sbin/homehub-queue-update", version])
-        return jsonify(ok=True, started=True, version=version), 202
+        try:
+            run_privileged("/usr/local/sbin/homehub-queue-update", version)
+            return jsonify(ok=True, started=True, version=version), 202
+        except Exception as exc:
+            return jsonify(ok=False, error=str(exc)), 500
 
     @app.post("/api/setup/reboot")
     @require_setup
     def reboot():
-        subprocess.Popen(["sudo", "reboot"])
-        return jsonify(ok=True)
+        try:
+            run_privileged("/usr/local/sbin/homehub-control", "reboot")
+            return jsonify(ok=True, scheduled=True)
+        except Exception as exc:
+            return jsonify(ok=False, error=str(exc)), 500
+
+    @app.get("/api/display/status")
+    def get_display_status():
+        return jsonify(display_status())
+
+    @app.post("/api/display/control")
+    def display_control():
+        try:
+            action = str((request.get_json(silent=True) or {}).get("action", ""))
+            state = request_display_action(action)
+            return jsonify(ok=True, action=action, state=state, display=display_status())
+        except Exception as exc:
+            return jsonify(ok=False, error=str(exc)), 400
+
+    @app.get("/api/update/status")
+    def get_update_status():
+        return jsonify(update_status())
+
+    @app.post("/api/update/later")
+    def update_later():
+        status = _read_json(UPDATE_STATUS_PATH, {})
+        status["dismissedUntil"] = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+        atomic_write_json(UPDATE_STATUS_PATH, status, mode=0o644)
+        return jsonify(update_status())
 
     @app.post("/api/task/complete")
     def task_complete():
@@ -307,9 +419,18 @@ def sync_loop() -> None:
         time.sleep(max(30, int(load_config().get("sync_seconds", 60))))
 
 
+def update_check_loop() -> None:
+    time.sleep(30)
+    while True:
+        if load_config().get("updates", {}).get("auto_check", True):
+            refresh_update_status()
+        time.sleep(6 * 60 * 60)
+
+
 def main() -> None:
     load_config()
     threading.Thread(target=sync_loop, daemon=True, name="homehub-sync").start()
+    threading.Thread(target=update_check_loop, daemon=True, name="homehub-update-check").start()
     create_app().run(host="0.0.0.0", port=8080, threaded=True, use_reloader=False)
 
 

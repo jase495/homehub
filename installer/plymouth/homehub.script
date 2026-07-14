@@ -1,20 +1,7 @@
 Window.SetBackgroundTopColor(0.055, 0.043, 0.035);
 Window.SetBackgroundBottomColor(0.055, 0.043, 0.035);
 
-mark_image = Image.Text("H", 0.91, 0.71, 0.43);
-mark_image = mark_image.Scale(82, 82);
-mark_sprite = Sprite(mark_image);
-mark_sprite.SetX(Window.GetWidth() / 2 - mark_image.GetWidth() / 2);
-mark_sprite.SetY(Window.GetHeight() / 2 - 118);
-
-title_image = Image.Text("HomeHub", 0.96, 0.91, 0.84);
-title_image = title_image.Scale(310, 62);
-title_sprite = Sprite(title_image);
-title_sprite.SetX(Window.GetWidth() / 2 - title_image.GetWidth() / 2);
-title_sprite.SetY(Window.GetHeight() / 2 - 22);
-
-message_image = Image.Text("Starting", 0.68, 0.61, 0.53);
-message_image = message_image.Scale(126, 25);
-message_sprite = Sprite(message_image);
-message_sprite.SetX(Window.GetWidth() / 2 - message_image.GetWidth() / 2);
-message_sprite.SetY(Window.GetHeight() / 2 + 58);
+logo_image = Image("homehub-logo.png");
+logo_sprite = Sprite(logo_image);
+logo_sprite.SetX(Window.GetWidth() / 2 - logo_image.GetWidth() / 2);
+logo_sprite.SetY(Window.GetHeight() / 2 - logo_image.GetHeight() / 2);

@@ -1,54 +1,55 @@
-# Fresh installation and legacy migration
+# Fresh installation and migration
 
-## Upgrade from signed HomeHub 1.0.0
+## One-time upgrade from HomeHub 1.1.0
 
-Reflashing is not required. After the `1.1.0` GitHub Release is published:
+Reflashing is not required. Version 1.1.0's service sandbox blocked the update,
+restart-display and reboot helpers even though the buttons appeared to succeed.
+After the `1.2.0` release is published, run this once over SSH:
 
-1. Open **Settings** on the touchscreen.
-2. Tap **Check for update**.
-3. Tap **Install 1.1.0**, then tap once more to confirm.
-4. Leave HomeHub powered while it verifies, installs and health-checks the release.
-5. When the calendar returns, reboot once so the quiet HomeHub boot theme and
-   console suppression take effect.
+```bash
+sudo /usr/local/sbin/homehub-apply-update --version 1.2.0
+```
+
+Leave HomeHub powered while it downloads, verifies, installs and health-checks
+the signed release. Reboot once after the calendar returns so the new
+high-resolution boot theme is placed into the initramfs:
+
+```bash
+sudo reboot
+```
+
+From 1.2.0 onward, signed updates, display restart and reboot work from both the
+touchscreen Settings panel and QR setup portal.
 
 The atomic updater preserves `/var/lib/homehub`, including Google credentials,
-tokens, selected calendars and task lists, screen schedule and cached data. It
-automatically restores 1.0.0 if the 1.1.0 server fails its health check.
+tokens, selected calendars and task lists, subtitle, screen schedule, power mode
+and cached data. It restores the previous release automatically if the new server
+does not pass its version health check.
 
-## Recommended: fresh reflash
+## Recommended fresh installation
 
 1. Flash Raspberry Pi OS Lite 32-bit using Raspberry Pi Imager.
 2. Configure hostname `homehub`, Wi-Fi, Australia/Brisbane, and SSH.
-3. Copy the versioned HomeHub release archive to the Pi and extract it.
+3. Copy and extract the versioned HomeHub release archive on the Pi.
 4. Run `sudo ./installer/install.sh`.
 5. Reboot, scan the first-run QR, and complete the wizard.
 
-This gives the cleanest appliance and avoids carrying forward WebKit caches or
-hand-edited v5 files. Google must be connected again unless you separately copy
-the old `credentials.json` and `token.json` into `/var/lib/homehub` with owner
-`homehub:homehub` and mode `0600`.
+The installer retries interrupted downloads, stages and preflights the new
+release before switching it live, and does not remove an earlier working release.
 
-## In-place legacy migration
+## In-place legacy v5 migration
 
-Running the installer on the current Pi detects the direct `/opt/homehub` v5
-layout. It stops the two services and moves the whole legacy tree to a timestamped
-directory under `/var/backups`. It copies these into `/var/lib/homehub`:
+Running the installer on the direct `/opt/homehub` v5 layout stops the services
+and moves the legacy tree to a timestamped directory under `/var/backups`. It
+copies `config.json`, `credentials.json`, `token.json`, and cached `data.json`
+into the managed state directory before starting the versioned release layout.
 
-- `config.json`
-- `credentials.json`
-- `token.json`
-- `www/data.json` as `cache.json`
+HomeHub ignores legacy weather configuration and data. Google credentials,
+selected calendars, task lists and screen schedule remain intact.
 
-It then installs the release/current layout. The legacy backup is not deleted.
+## Manual rollback
 
-HomeHub 1.1 ignores and removes legacy weather data from the live cache. Existing
-Google credentials, selected calendars, selected task lists and screen schedule
-remain intact.
-
-## Rollback
-
-OTA rollback is automatic if `/api/health` does not report the new version in
-45 seconds. For manual rollback:
+OTA rollback is automatic. For an explicit rollback:
 
 ```bash
 sudo ln -sfn /opt/homehub/releases/PREVIOUS /opt/homehub/current

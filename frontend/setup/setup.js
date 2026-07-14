@@ -86,6 +86,7 @@
       byId("sleepEnabled").checked = sleep.enabled !== false;
       byId("sleepOff").value = sleep.off || "22:00";
       byId("sleepOn").value = sleep.on || "06:00";
+      byId("displayMethod").value = sleep.method || "auto";
       const milestone = status.milestone || {};
       byId("milestoneEnabled").checked = milestone.enabled === true;
       byId("milestoneLabel").value = milestone.label || "";
@@ -97,6 +98,7 @@
       renderSelect("defaultCalendar", status.writableCalendars || [], "id", "title", status.event_calendar_id);
       renderSelect("defaultTaskList", status.taskLists || [], "title", "title", status.default_task_list);
       byId("versionStatus").textContent = `Installed HomeHub ${status.version}.`;
+      renderDisplayStatus(status.display || {});
     } catch (error) {
       message(error.message, true);
     }
@@ -129,7 +131,7 @@
       title: byId("title").value.trim() || "HomeHub",
       subtitle: byId("subtitle").value.trim(),
       timezone: byId("timezone").value.trim(),
-      sleep: {enabled: byId("sleepEnabled").checked, off: byId("sleepOff").value, on: byId("sleepOn").value},
+      sleep: {enabled: byId("sleepEnabled").checked, off: byId("sleepOff").value, on: byId("sleepOn").value, method: byId("displayMethod").value},
       milestone: {enabled: byId("milestoneEnabled").checked, label: byId("milestoneLabel").value.trim(), date: byId("milestoneDate").value},
       calendar_ids: selectedValues("calendarChoices"),
       event_calendar_id: byId("defaultCalendar").value,
@@ -161,12 +163,44 @@
   };
 
   byId("restartDisplay").onclick = async () => {
-    try { await api("/api/setup/restart-display", {method: "POST", body: "{}"}); }
+    try {
+      await api("/api/setup/restart-display", {method: "POST", body: "{}"});
+      message("Display restart scheduled");
+    }
     catch (error) { message(error.message, true); }
   };
-  byId("reboot").onclick = async () => {
-    if (confirm("Reboot HomeHub now?")) await api("/api/setup/reboot", {method: "POST", body: "{}"});
-  };
+
+  function renderDisplayStatus(display) {
+    const method = display.activeMethod || display.configuredMethod || "automatic";
+    const label = display.mode === "away" ? "Away" : display.mode === "sleep" ? "Sleeping" : "Home";
+    byId("displayStatus").textContent = display.lastError
+      ? `Display power needs attention: ${display.lastError}`
+      : `${label} · ${display.currentlyOff ? "screen off" : "screen on"} · ${method}`;
+    byId("displayStatus").classList.toggle("error-copy", Boolean(display.lastError));
+  }
+
+  async function displayAction(action) {
+    try {
+      const result = await api("/api/display/control", {method: "POST", body: JSON.stringify({action})});
+      renderDisplayStatus(result.display || {});
+      message(action === "test" ? "Display will return in 10 seconds" : "Screen power mode changed");
+    } catch (error) { message(error.message, true); }
+  }
+
+  byId("testDisplay").onclick = () => displayAction("test");
+  document.querySelectorAll("[data-display-action]").forEach(button => {
+    button.onclick = () => displayAction(button.dataset.displayAction);
+  });
+
+  async function rebootHomeHub() {
+    if (!confirm("Reboot HomeHub now?")) return;
+    try {
+      await api("/api/setup/reboot", {method: "POST", body: "{}"});
+      message("HomeHub reboot scheduled");
+    } catch (error) { message(error.message, true); }
+  }
+  byId("reboot").onclick = rebootHomeHub;
+  byId("systemReboot").onclick = rebootHomeHub;
 
   load();
 })();

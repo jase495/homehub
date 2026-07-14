@@ -14,7 +14,9 @@ Environment=PYTHONPATH=/opt/homehub/current/backend
 ExecStart=/opt/homehub/venv/bin/python -m homehub.app
 Restart=always
 RestartSec=3
-NoNewPrivileges=true
+# The service may invoke only the two exact root helpers allowed by the
+# HomeHub sudoers file. No shell or general systemctl access is granted.
+NoNewPrivileges=false
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true

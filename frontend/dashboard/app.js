@@ -18,18 +18,24 @@
     setupInfo: null,
     availableVersion: null,
     installArmed: false,
+    systemArmed: "",
+    displayStatus: null,
+    wakeRequested: false,
+    promptedUpdate: "",
     toastTimer: null,
     refreshing: false,
   };
 
   const elements = {
     brandTitle: byId("brandTitle"),
+    brandSubtitle: byId("brandSubtitle"),
     syncStatus: byId("syncStatus"),
     monthTitle: byId("monthTitle"),
     milestone: byId("milestone"),
     sleepSummary: byId("sleepSummary"),
     clockTime: byId("clockTime"),
     clockDate: byId("clockDate"),
+    clockYear: byId("clockYear"),
     calendarGrid: byId("calendarGrid"),
     calendarLegend: byId("calendarLegend"),
     taskList: byId("taskList"),
@@ -52,6 +58,9 @@
     sleepEnabled: byId("sleepEnabled"),
     sleepOff: byId("sleepOff"),
     sleepOn: byId("sleepOn"),
+    displayMethod: byId("displayMethod"),
+    displayStatus: byId("displayStatus"),
+    powerModeBadge: byId("powerModeBadge"),
     versionText: byId("versionText"),
     updateBadge: byId("updateBadge"),
     updateMessage: byId("updateMessage"),
@@ -335,12 +344,13 @@
     } else if (status === "setup_required") {
       label = "Google setup needed";
     }
-    elements.syncStatus.className = className;
+    elements.syncStatus.className = `sync-status ${className}`.trim();
     elements.syncStatus.innerHTML = "";
     const dot = document.createElement("span");
     dot.className = "status-dot";
     elements.syncStatus.append(dot, document.createTextNode(label));
     elements.brandTitle.textContent = data.title || "HomeHub";
+    elements.brandSubtitle.textContent = data.subtitle || "Calendar & Tasks";
 
     const sleep = data.config?.sleep || {};
     elements.sleepSummary.textContent = sleep.enabled === false
@@ -388,7 +398,8 @@
   function renderClock() {
     const now = new Date();
     elements.clockTime.textContent = now.toLocaleTimeString("en-AU", {hour: "numeric", minute: "2-digit"});
-    elements.clockDate.textContent = now.toLocaleDateString("en-AU", {weekday: "short", day: "numeric", month: "short", year: "numeric"});
+    elements.clockDate.textContent = now.toLocaleDateString("en-AU", {weekday: "long", day: "numeric", month: "long"});
+    elements.clockYear.textContent = `\u00b7 ${now.toLocaleDateString("en-AU", {year: "numeric"})}`;
   }
 
   function eventTimeLabel(event) {
@@ -691,8 +702,7 @@
   }
 
   async function ensureSetupInfo() {
-    if (state.setupInfo) return state.setupInfo;
-    state.setupInfo = await api("/api/setup/screen");
+    if (!state.setupInfo) state.setupInfo = await api("/api/setup/screen");
     elements.setupQr.src = state.setupInfo.qrSvg;
     elements.setupUrl.textContent = state.setupInfo.url;
     elements.versionText.textContent = `Installed HomeHub ${state.setupInfo.version}`;
@@ -704,6 +714,7 @@
     elements.sleepEnabled.checked = sleep.enabled !== false;
     elements.sleepOff.value = sleep.off || "22:00";
     elements.sleepOn.value = sleep.on || "06:00";
+    elements.displayMethod.value = sleep.method || "auto";
     elements.setupUrl.textContent = "Loading setup address";
     elements.updateMessage.textContent = "HomeHub only accepts signed releases and rolls back if an update fails.";
     elements.updateBadge.textContent = "Current";
@@ -711,6 +722,7 @@
     elements.installUpdate.classList.add("hidden");
     state.installArmed = false;
     openModal("settingsModal");
+    pollDisplayStatus();
     setTimeout(() => ensureSetupInfo().catch(error => {
       elements.setupUrl.textContent = error.message;
     }), 0);
@@ -724,12 +736,16 @@
           enabled: elements.sleepEnabled.checked,
           off: elements.sleepOff.value,
           on: elements.sleepOn.value,
+          method: elements.displayMethod.value,
         }),
       });
       applyData(response.data);
       showToast("Screen schedule saved");
+      await pollDisplayStatus();
+      return true;
     } catch (error) {
       showToast(error.message, true);
+      return false;
     }
   }
 
@@ -762,9 +778,9 @@
     }
   }
 
-  async function installUpdate() {
+  async function installUpdate(confirmed = false) {
     if (!state.availableVersion) return;
-    if (!state.installArmed) {
+    if (!confirmed && !state.installArmed) {
       state.installArmed = true;
       elements.installUpdate.textContent = "Tap again to install";
       elements.updateMessage.textContent = "The display may restart. HomeHub will roll back automatically if the update is unhealthy.";
@@ -793,6 +809,103 @@
     }
   }
 
+  function displayModeLabel(status) {
+    if (status?.mode === "away") return "Away";
+    if (status?.mode === "sleep") return "Sleeping";
+    return "Home";
+  }
+
+  function renderDisplayStatus(status) {
+    state.displayStatus = status;
+    state.wakeRequested = false;
+    const mode = displayModeLabel(status);
+    elements.powerModeBadge.textContent = mode;
+    const method = status.activeMethod || status.configuredMethod || "automatic";
+    elements.displayStatus.textContent = status.lastError
+      ? `Not working: ${status.lastError}`
+      : `${status.currentlyOff ? "Screen off" : "Screen on"} · ${method}`;
+    elements.displayStatus.classList.toggle("error-copy", Boolean(status.lastError));
+    if ((status.mode !== "home" || status.reason === "preview") && !status.currentlyOff) {
+      byId("resumeEyebrow").textContent = status.mode === "away" ? "Away mode" : "HomeHub is sleeping";
+      byId("resumeTitle").textContent = status.mode === "away" ? "Are you home again?" : "Welcome back";
+      openModal("resumeOverlay");
+    } else if (status.mode === "home") {
+      closeModal("resumeOverlay");
+    }
+  }
+
+  async function pollDisplayStatus() {
+    try {
+      renderDisplayStatus(await api("/api/display/status"));
+    } catch (error) {
+      elements.displayStatus.textContent = error.message;
+      elements.displayStatus.classList.add("error-copy");
+    }
+  }
+
+  async function displayAction(action) {
+    try {
+      const result = await api("/api/display/control", {
+        method: "POST",
+        body: JSON.stringify({action}),
+      });
+      renderDisplayStatus(result.display);
+      if (action === "test") showToast("Screen will return in 10 seconds");
+      if (action === "home") {
+        closeModal("powerModal");
+        closeModal("resumeOverlay");
+        showToast("Home schedule resumed");
+      }
+      if (action === "sleep_now" || action === "away") {
+        closeModal("powerModal");
+        closeModal("settingsModal");
+        showToast(action === "away" ? "Away mode enabled" : "Good night");
+      }
+      if (action === "end_peek") closeModal("resumeOverlay");
+    } catch (error) {
+      showToast(error.message, true);
+    }
+  }
+
+  async function runSystemAction(action, button) {
+    if (state.systemArmed !== action) {
+      state.systemArmed = action;
+      button.textContent = action === "reboot" ? "Tap again to reboot" : "Tap again to restart";
+      setTimeout(() => {
+        if (state.systemArmed !== action) return;
+        state.systemArmed = "";
+        button.textContent = action === "reboot" ? "Reboot HomeHub" : "Restart display";
+      }, 6000);
+      return;
+    }
+    state.systemArmed = "";
+    button.disabled = true;
+    button.textContent = action === "reboot" ? "Rebooting" : "Restarting";
+    try {
+      const setup = await ensureSetupInfo();
+      await api(`/api/setup/${action === "reboot" ? "reboot" : "restart-display"}?token=${encodeURIComponent(setup.token)}`, {method: "POST", body: "{}"});
+      showToast(action === "reboot" ? "HomeHub is rebooting" : "Display is restarting");
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = action === "reboot" ? "Reboot HomeHub" : "Restart display";
+      showToast(error.message, true);
+    }
+  }
+
+  async function pollUpdateStatus() {
+    try {
+      const result = await api("/api/update/status");
+      if (!result.available || result.dismissed || state.promptedUpdate === result.version) return;
+      if (document.querySelector(".modal:not(.hidden)")) return;
+      state.availableVersion = result.version;
+      state.promptedUpdate = result.version;
+      byId("updatePromptTitle").textContent = `HomeHub ${result.version} is ready`;
+      openModal("updatePrompt");
+    } catch (_error) {
+      // Periodic checks are deliberately quiet; manual checks show diagnostics.
+    }
+  }
+
   function moveDate(target, days) {
     target.setDate(target.getDate() + days);
   }
@@ -813,6 +926,10 @@
     });
     bindTap(byId("addEventButton"), () => openEventEditor(null, new Date()));
     bindTap(byId("addTaskButton"), openTaskEditor);
+    bindTap(byId("powerButton"), () => {
+      openModal("powerModal");
+      pollDisplayStatus();
+    });
     bindTap(byId("settingsButton"), openSettings);
     bindTap(elements.calendarGrid, event => {
       const cell = event.target.closest(".day-cell");
@@ -850,14 +967,45 @@
     bindTap(byId("taskDateForward"), () => { moveDate(state.taskDate, 1); elements.taskDateLabel.textContent = readableDate(state.taskDate); });
     bindTap(byId("saveTask"), saveTask);
     bindTap(byId("saveSleep"), saveSleepSettings);
+    bindTap(byId("testDisplay"), async () => {
+      if (await saveSleepSettings()) displayAction("test");
+    });
+    document.querySelectorAll("[data-display-action]").forEach(button => {
+      bindTap(button, () => displayAction(button.dataset.displayAction));
+    });
+    bindTap(byId("resumeHome"), () => displayAction("home"));
+    bindTap(byId("keepSleeping"), () => displayAction("end_peek"));
+    bindTap(byId("restartDisplay"), () => runSystemAction("restart-display", byId("restartDisplay")));
+    bindTap(byId("rebootHomeHub"), () => runSystemAction("reboot", byId("rebootHomeHub")));
     bindTap(elements.checkUpdate, checkForUpdate);
-    bindTap(elements.installUpdate, installUpdate);
+    bindTap(elements.installUpdate, () => installUpdate(false));
+    bindTap(byId("updateLater"), async () => {
+      closeModal("updatePrompt");
+      try { await api("/api/update/later", {method: "POST", body: "{}"}); }
+      catch (_error) { /* The prompt is still safely dismissed locally. */ }
+    });
+    bindTap(byId("updateNow"), () => {
+      closeModal("updatePrompt");
+      installUpdate(true);
+    });
     document.querySelectorAll("[data-close]").forEach(button => bindTap(button, () => closeModal(button.dataset.close)));
     document.querySelectorAll(".text-entry").forEach(entry => bindTap(entry, () => { state.activeText = entry; }));
     addPressFeedback(document.body);
+
+    document.addEventListener(window.PointerEvent ? "pointerup" : "click", event => {
+      const status = state.displayStatus;
+      if (!status?.currentlyOff || status.reason === "test" || state.wakeRequested) return;
+      state.wakeRequested = true;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      api("/api/display/control", {method: "POST", body: JSON.stringify({action: "peek"})})
+        .then(() => setTimeout(pollDisplayStatus, 1200))
+        .catch(() => { state.wakeRequested = false; });
+    }, {capture: true, passive: false});
   }
 
   function initialise() {
+    document.documentElement.style.setProperty("cursor", "none", "important");
     populateSleepSelect(elements.sleepOff);
     populateSleepSelect(elements.sleepOn);
     createKeyboard(byId("eventKeyboard"));
@@ -865,8 +1013,12 @@
     bindControls();
     renderClock();
     refreshData();
+    pollDisplayStatus();
+    setTimeout(pollUpdateStatus, 5000);
     setInterval(renderClock, 1000);
     setInterval(() => refreshData(true), 60000);
+    setInterval(pollDisplayStatus, 5000);
+    setInterval(pollUpdateStatus, 60 * 1000);
     let resizeTimer;
     window.addEventListener("resize", () => {
       clearTimeout(resizeTimer);
