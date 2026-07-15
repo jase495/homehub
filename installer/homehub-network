@@ -1,0 +1,57 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import json
+import os
+import pwd
+import subprocess
+import sys
+from pathlib import Path
+
+APP_ROOT = Path("/opt/homehub/current")
+STATE = Path("/var/lib/homehub")
+REQUEST = STATE / "network-request.json"
+sys.path.insert(0, str(APP_ROOT / "backend"))
+
+from homehub.network import connect_wifi, network_status, scan_wifi  # noqa: E402
+
+
+def emit(value: object) -> None:
+    print(json.dumps(value, ensure_ascii=False))
+
+
+def main() -> None:
+    action = sys.argv[1] if len(sys.argv) > 1 else ""
+    if action == "status":
+        emit(network_status())
+        return
+    if action == "scan":
+        emit(scan_wifi())
+        return
+    if action == "apply":
+        if not REQUEST.is_file() or REQUEST.is_symlink():
+            raise RuntimeError("No pending Wi-Fi request")
+        stat = REQUEST.stat()
+        if stat.st_uid != pwd.getpwnam("homehub").pw_uid or stat.st_mode & 0o077:
+            raise RuntimeError("Wi-Fi request permissions are unsafe")
+        subprocess.run([
+            "systemd-run", "--quiet", "--collect", "--on-active=2s",
+            "--unit=homehub-network-apply", str(Path(__file__).resolve()), "apply-now",
+        ], check=True)
+        emit({"ok": True, "scheduled": True})
+        return
+    if action == "apply-now" and os.geteuid() == 0:
+        try:
+            connect_wifi(str(REQUEST))
+        finally:
+            REQUEST.unlink(missing_ok=True)
+        return
+    raise RuntimeError("Usage: homehub-network status|scan|apply")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:
+        emit({"ok": False, "error": str(exc)})
+        raise SystemExit(1)

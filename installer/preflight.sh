@@ -15,6 +15,11 @@ test -f "$ROOT/installer/configure-appliance.sh"
 test -f "$ROOT/installer/plymouth/homehub.script"
 test -f "$ROOT/installer/plymouth/homehub-logo.svg"
 test -f "$ROOT/installer/homehub-control"
+test -f "$ROOT/installer/homehub-network"
+python3 -m py_compile "$ROOT/installer/homehub-network"
+grep -q 'id="networkModal"' "$ROOT/frontend/dashboard/index.html"
+grep -q 'def restore_task' "$ROOT/backend/homehub/engine.py"
+grep -q 'def delete_event' "$ROOT/backend/homehub/engine.py"
 python3 - "$ROOT/installer/plymouth/homehub-logo.svg" <<'PY'
 import sys
 import xml.etree.ElementTree as ET

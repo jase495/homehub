@@ -48,7 +48,7 @@ retry() {
 echo "Installing HomeHub ${VERSION}"
 retry apt-get update
 retry env DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  cog cage wlopm wlr-randr jq rsync avahi-daemon python3 python3-venv python3-pip \
+  cog cage wlopm wlr-randr jq rsync avahi-daemon network-manager python3 python3-venv python3-pip \
   ca-certificates curl plymouth plymouth-themes librsvg2-bin
 
 # Resolve and download the complete dependency set before taking an installed
@@ -94,6 +94,7 @@ rsync -a --delete --exclude '.git' --exclude '.venv' --exclude 'dist' --exclude 
 chmod 0755 "$STAGING/installer/"*.sh "$STAGING/installer/kiosk-session.sh" \
   "$STAGING/installer/homehub-control" "$STAGING/installer/homehub-apply-update" \
   "$STAGING/installer/homehub-queue-update"
+chmod 0755 "$STAGING/installer/homehub-network"
 "$STAGING/installer/preflight.sh" "$STAGING"
 
 python3 -m venv "$ROOT/venv"

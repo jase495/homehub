@@ -7,3 +7,4 @@
 .choices input{width:22px;height:22px}.fineprint{font-size:13px}.statusline{margin-bottom:14px}
 @media(max-width:700px){.progress,.choice-grid{grid-template-columns:1fr}}
 .power-controls{margin-top:16px}.error-copy{color:var(--bad)!important}
+.network-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:14px 0}.network-choice{display:grid;height:auto;min-height:62px;text-align:left}.network-choice strong,.network-choice span{display:block}.network-choice span{margin-top:4px;color:var(--muted);font-size:13px}.network-choice.selected{border-color:var(--gold);background:#50351f}#networkPasswordRow{align-items:end}.hidden{display:none!important}@media(max-width:700px){.network-choices{grid-template-columns:1fr}}

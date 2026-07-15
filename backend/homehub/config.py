@@ -17,6 +17,7 @@ TOKEN_PATH = STATE_DIR / "token.json"
 DISPLAY_STATE_PATH = STATE_DIR / "display-state.json"
 DISPLAY_STATUS_PATH = STATE_DIR / "display-status.json"
 UPDATE_STATUS_PATH = STATE_DIR / "update-status.json"
+NETWORK_REQUEST_PATH = STATE_DIR / "network-request.json"
 
 DEFAULT_CONFIG: dict[str, Any] = {
     # These keys intentionally retain the v5 schema so an installed appliance
@@ -29,8 +30,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "event_calendar_id": "primary",
     "task_lists": [],
     "default_task_list": "",
-    "max_tasks": 12,
-    "max_completed_tasks": 4,
+    "max_tasks": 50,
+    "max_completed_tasks": 12,
     "sync_seconds": 60,
     "display_rotation": 0,
     "milestone": {"enabled": False, "label": "", "date": ""},

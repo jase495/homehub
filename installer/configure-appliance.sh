@@ -6,6 +6,7 @@ ROOT="${1:-/opt/homehub/current}"
 install -m 0755 "$ROOT/installer/homehub-apply-update" /usr/local/sbin/homehub-apply-update
 install -m 0755 "$ROOT/installer/homehub-queue-update" /usr/local/sbin/homehub-queue-update
 install -m 0755 "$ROOT/installer/homehub-control" /usr/local/sbin/homehub-control
+install -m 0755 "$ROOT/installer/homehub-network" /usr/local/sbin/homehub-network
 install -m 0644 "$ROOT/installer/systemd/homehub-server.service" /etc/systemd/system/homehub-server.service
 install -m 0644 "$ROOT/installer/systemd/homehub-kiosk.service" /etc/systemd/system/homehub-kiosk.service
 install -d -m 0755 /etc/homehub
@@ -17,6 +18,7 @@ cat >/etc/sudoers.d/homehub-appliance <<'EOF'
 homehub ALL=(root) NOPASSWD: /usr/local/sbin/homehub-queue-update *
 homehub ALL=(root) NOPASSWD: /usr/local/sbin/homehub-control restart-display
 homehub ALL=(root) NOPASSWD: /usr/local/sbin/homehub-control reboot
+homehub ALL=(root) NOPASSWD: /usr/local/sbin/homehub-network apply
 EOF
 chmod 0440 /etc/sudoers.d/homehub-appliance
 

@@ -6,6 +6,7 @@
   if (token) localStorage.homehubSetupToken = token;
   let status = {};
   let availableUpdate = null;
+  let selectedNetwork = null;
 
   async function api(path, options = {}) {
     const join = path.includes("?") ? "&" : "?";
@@ -56,7 +57,7 @@
       const input = document.createElement("input");
       input.type = "checkbox";
       input.value = item[valueKey];
-      input.checked = !selected.length || selected.includes(item[valueKey]);
+      input.checked = !selected.length || selected.includes(item[valueKey]) || selected.includes(item[labelKey]);
       label.append(input, document.createTextNode(item[labelKey]));
       container.append(label);
     }
@@ -68,7 +69,7 @@
       const option = document.createElement("option");
       option.value = item[valueKey];
       option.textContent = item[labelKey];
-      option.selected = item[valueKey] === selected || (!selected && item.primary);
+      option.selected = item[valueKey] === selected || item[labelKey] === selected || (!selected && item.primary);
       return option;
     }));
   }
@@ -94,14 +95,66 @@
       byId("tunnelCommand").textContent = `ssh -L 8080:127.0.0.1:8080 -L 8765:127.0.0.1:8765 YOUR_PI_USER@homehub.local\nThen open: http://localhost:8080/setup/?token=${token}`;
       renderProgress();
       renderChoices("calendarChoices", status.calendars || [], status.calendar_ids || [], "id", "title");
-      renderChoices("taskChoices", status.taskLists || [], status.task_lists || [], "title", "title");
+      renderChoices("taskChoices", status.taskLists || [], status.task_lists || [], "id", "title");
       renderSelect("defaultCalendar", status.writableCalendars || [], "id", "title", status.event_calendar_id);
-      renderSelect("defaultTaskList", status.taskLists || [], "title", "title", status.default_task_list);
+      renderSelect("defaultTaskList", status.taskLists || [], "id", "title", status.default_task_list);
       byId("versionStatus").textContent = `Installed HomeHub ${status.version}.`;
       renderDisplayStatus(status.display || {});
+      renderNetworkStatus(status.network || {});
     } catch (error) {
       message(error.message, true);
     }
+  }
+
+  function renderNetworkStatus(network) {
+    const name = network.type === "ethernet" ? `Ethernet · ${network.connection || "Connected"}` : network.ssid || "Offline";
+    const detail = network.state === "online" ? "Internet connected" : network.state === "limited" ? "Local network only" : "Not connected";
+    byId("networkStatus").textContent = `${name} · ${detail}${network.ip ? ` · ${network.ip}` : ""}`;
+  }
+
+  async function scanNetworks() {
+    const button = byId("scanNetworks");
+    button.disabled = true;
+    button.textContent = "Scanning";
+    try {
+      const result = await api("/api/setup/network/scan");
+      byId("networkChoices").replaceChildren(...(result.networks || []).map(network => {
+        const choice = document.createElement("button");
+        choice.type = "button";
+        choice.className = "network-choice";
+        choice.dataset.ssid = network.ssid;
+        const name = document.createElement("strong");
+        name.textContent = network.ssid;
+        const detail = document.createElement("span");
+        detail.textContent = `${network.signal}% · ${network.secured ? network.security || "Secured" : "Open"}${network.active ? " · Connected" : ""}`;
+        choice.append(name, detail);
+        choice.onclick = () => {
+          selectedNetwork = network;
+          document.querySelectorAll(".network-choice").forEach(item => item.classList.toggle("selected", item === choice));
+          byId("networkPasswordRow").classList.remove("hidden");
+          byId("networkPassword").value = "";
+          byId("networkPassword").disabled = !network.secured;
+        };
+        return choice;
+      }));
+    } catch (error) {
+      message(error.message, true);
+    } finally {
+      button.disabled = false;
+      button.textContent = "Scan Wi-Fi";
+    }
+  }
+
+  async function connectNetwork() {
+    if (!selectedNetwork) return message("Choose a Wi-Fi network first", true);
+    try {
+      const result = await api("/api/setup/network/connect", {
+        method: "POST",
+        body: JSON.stringify({ssid: selectedNetwork.ssid, password: byId("networkPassword").value}),
+      });
+      byId("networkPassword").value = "";
+      message(result.message || "HomeHub is switching Wi-Fi");
+    } catch (error) { message(error.message, true); }
   }
 
   function selectedValues(container) {
@@ -188,6 +241,8 @@
   }
 
   byId("testDisplay").onclick = () => displayAction("test");
+  byId("scanNetworks").onclick = scanNetworks;
+  byId("connectNetwork").onclick = connectNetwork;
   document.querySelectorAll("[data-display-action]").forEach(button => {
     button.onclick = () => displayAction(button.dataset.displayAction);
   });
