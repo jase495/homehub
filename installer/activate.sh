@@ -24,10 +24,11 @@ install_dependencies
 
 if ! command -v plymouth-set-default-theme >/dev/null 2>&1 \
   || ! command -v rsvg-convert >/dev/null 2>&1 \
-  || ! command -v wlr-randr >/dev/null 2>&1; then
+  || ! command -v wlr-randr >/dev/null 2>&1 \
+  || ! command -v nmcli >/dev/null 2>&1; then
   for attempt in 1 2 3; do
     apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-      plymouth plymouth-themes librsvg2-bin wlr-randr && break
+      plymouth plymouth-themes librsvg2-bin wlr-randr network-manager && break
     echo "Appliance package install interrupted. Retrying (${attempt}/3)..." >&2
     sleep 5
   done

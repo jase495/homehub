@@ -154,7 +154,7 @@ def fetch_events(
     return sorted(events, key=lambda item: (item.get("start") or "", item.get("title") or ""))
 
 
-def chosen_task_lists(service: Any, configured_names: list[str]) -> list[dict[str, Any]]:
+def list_task_lists(service: Any) -> list[dict[str, Any]]:
     task_lists: list[dict[str, Any]] = []
     page_token = None
     while True:
@@ -163,10 +163,19 @@ def chosen_task_lists(service: Any, configured_names: list[str]) -> list[dict[st
         page_token = response.get("nextPageToken")
         if not page_token:
             break
-    if not configured_names:
+    return task_lists
+
+
+def chosen_task_lists(service: Any, configured_selectors: list[str]) -> list[dict[str, Any]]:
+    task_lists = list_task_lists(service)
+    if not configured_selectors:
         return task_lists
-    wanted = {name.casefold() for name in configured_names}
-    return [item for item in task_lists if item.get("title", "").casefold() in wanted]
+    wanted = {str(value).casefold() for value in configured_selectors}
+    return [
+        item for item in task_lists
+        if str(item.get("id", "")).casefold() in wanted
+        or str(item.get("title", "")).casefold() in wanted
+    ]
 
 
 def task_payload(task: dict[str, Any], task_list: dict[str, Any]) -> dict[str, Any]:
@@ -191,29 +200,43 @@ def fetch_tasks(
     open_tasks: list[dict[str, Any]] = []
     completed_tasks: list[dict[str, Any]] = []
     completed_min = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat().replace("+00:00", "Z")
-    for task_list in task_lists:
+    def collect(task_list: dict[str, Any], completed: bool) -> None:
         page_token = None
         while True:
+            arguments: dict[str, Any] = {
+                "tasklist": task_list["id"],
+                "showCompleted": completed,
+                "showHidden": completed,
+                "showAssigned": True,
+                "maxResults": 100,
+                "pageToken": page_token,
+            }
+            if completed:
+                arguments["completedMin"] = completed_min
             response = service.tasks().list(
-                tasklist=task_list["id"],
-                showCompleted=True,
-                showHidden=False,
-                showAssigned=True,
-                completedMin=completed_min,
-                maxResults=100,
-                pageToken=page_token,
+                **arguments,
             ).execute()
             for task in response.get("items", []):
                 if task.get("deleted"):
                     continue
                 item = task_payload(task, task_list)
                 if task.get("status") == "completed":
-                    completed_tasks.append(item)
+                    if completed:
+                        completed_tasks.append(item)
                 else:
-                    open_tasks.append(item)
+                    if not completed:
+                        open_tasks.append(item)
             page_token = response.get("nextPageToken")
             if not page_token:
                 break
+
+    for task_list in task_lists:
+        # An open Google Task has no completion timestamp. Fetching open and
+        # completed rows separately avoids completedMin filtering every open
+        # task out of the response. First-party completed tasks are hidden, so
+        # that second query deliberately enables showHidden.
+        collect(task_list, completed=False)
+        collect(task_list, completed=True)
     open_tasks.sort(key=lambda item: (
         item.get("due") is None,
         item.get("due") or "9999",
@@ -238,6 +261,7 @@ def base_empty_data() -> dict[str, Any]:
         "calendars": [],
         "writableCalendars": [],
         "taskLists": [],
+        "availableTaskLists": [],
         "events": [],
         "tasks": [],
         "completedTasks": [],
@@ -259,12 +283,22 @@ def sync_data() -> dict[str, Any]:
             month_start - timedelta(days=45),
             month_start + timedelta(days=200),
         )
-        task_lists = chosen_task_lists(tasks_service, config.get("task_lists", []))
+        available_task_lists = list_task_lists(tasks_service)
+        configured_task_lists = config.get("task_lists", [])
+        if configured_task_lists:
+            wanted = {str(value).casefold() for value in configured_task_lists}
+            task_lists = [
+                item for item in available_task_lists
+                if str(item.get("id", "")).casefold() in wanted
+                or str(item.get("title", "")).casefold() in wanted
+            ]
+        else:
+            task_lists = available_task_lists
         tasks, completed = fetch_tasks(
             tasks_service,
             task_lists,
-            int(config.get("max_tasks", 18)),
-            int(config.get("max_completed_tasks", 6)),
+            max(50, int(config.get("max_tasks", 50))),
+            max(12, int(config.get("max_completed_tasks", 12))),
         )
         writable_roles = {"owner", "writer"}
         timestamp = datetime.now(timezone.utc).isoformat()
@@ -298,6 +332,10 @@ def sync_data() -> dict[str, Any]:
             "taskLists": [
                 {"id": task_list.get("id"), "title": task_list.get("title", "Tasks")}
                 for task_list in task_lists
+            ],
+            "availableTaskLists": [
+                {"id": task_list.get("id"), "title": task_list.get("title", "Tasks")}
+                for task_list in available_task_lists
             ],
             "events": events,
             "tasks": tasks,
@@ -372,6 +410,34 @@ def complete_task(task_list_id: str, task_id: str) -> dict[str, Any]:
     return data
 
 
+def restore_task(task_list_id: str, task_id: str) -> dict[str, Any]:
+    if not task_list_id or not task_id:
+        raise ValueError("Missing task identifier")
+    _, service = services()
+    restored = service.tasks().patch(
+        tasklist=task_list_id,
+        task=task_id,
+        body={"status": "needsAction", "completed": None},
+    ).execute()
+    data = current_data()
+    original = next((
+        task for task in data.get("completedTasks", [])
+        if task.get("taskListId") == task_list_id and task.get("id") == task_id
+    ), None)
+    data["completedTasks"] = [
+        task for task in data.get("completedTasks", [])
+        if not (task.get("taskListId") == task_list_id and task.get("id") == task_id)
+    ]
+    task_list = next(
+        (item for item in data.get("taskLists", []) if item.get("id") == task_list_id),
+        {"id": task_list_id, "title": original.get("list", "Tasks") if original else "Tasks"},
+    )
+    data["tasks"] = [task_payload(restored, task_list), *data.get("tasks", [])]
+    atomic_write_json(DATA_PATH, data, 0o640)
+    queue_sync()
+    return data
+
+
 def create_task(payload: dict[str, Any]) -> dict[str, Any]:
     title = str(payload.get("title", "")).strip()
     if not title:
@@ -382,11 +448,15 @@ def create_task(payload: dict[str, Any]) -> dict[str, Any]:
     if not task_lists:
         raise ValueError("No Google Task list is available")
     requested = str(payload.get("taskListId", "")).strip()
-    default_name = str(config.get("default_task_list", "")).casefold()
+    default_selector = str(config.get("default_task_list", "")).casefold()
     task_list = next((item for item in task_lists if item.get("id") == requested), None)
-    if task_list is None and default_name:
+    if task_list is None and default_selector:
         task_list = next(
-            (item for item in task_lists if item.get("title", "").casefold() == default_name),
+            (
+                item for item in task_lists
+                if str(item.get("id", "")).casefold() == default_selector
+                or str(item.get("title", "")).casefold() == default_selector
+            ),
             None,
         )
     task_list = task_list or task_lists[0]
@@ -406,6 +476,65 @@ def create_task(payload: dict[str, Any]) -> dict[str, Any]:
     created = service.tasks().insert(tasklist=task_list["id"], body=body).execute()
     data = current_data()
     data["tasks"] = [*data.get("tasks", []), task_payload(created, task_list)]
+    atomic_write_json(DATA_PATH, data, 0o640)
+    queue_sync()
+    return data
+
+
+def _task_due(value: Any) -> str | None:
+    due_text = str(value or "").strip()
+    if not due_text:
+        return None
+    try:
+        due_date = datetime.strptime(due_text, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise ValueError("Invalid task due date") from exc
+    return datetime(
+        due_date.year,
+        due_date.month,
+        due_date.day,
+        tzinfo=timezone.utc,
+    ).isoformat().replace("+00:00", "Z")
+
+
+def update_task(task_list_id: str, task_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    if not task_list_id or not task_id:
+        raise ValueError("Missing task identifier")
+    title = str(payload.get("title", "")).strip()
+    if not title:
+        raise ValueError("Task title is required")
+    _, service = services()
+    updated = service.tasks().patch(
+        tasklist=task_list_id,
+        task=task_id,
+        body={"title": title, "due": _task_due(payload.get("due"))},
+    ).execute()
+    data = current_data()
+    task_list = next(
+        (item for item in data.get("taskLists", []) if item.get("id") == task_list_id),
+        {"id": task_list_id, "title": "Tasks"},
+    )
+    replacement = task_payload(updated, task_list)
+    data["tasks"] = [
+        replacement if task.get("taskListId") == task_list_id and task.get("id") == task_id else task
+        for task in data.get("tasks", [])
+    ]
+    atomic_write_json(DATA_PATH, data, 0o640)
+    queue_sync()
+    return data
+
+
+def delete_task(task_list_id: str, task_id: str) -> dict[str, Any]:
+    if not task_list_id or not task_id:
+        raise ValueError("Missing task identifier")
+    _, service = services()
+    service.tasks().delete(tasklist=task_list_id, task=task_id).execute()
+    data = current_data()
+    for key in ("tasks", "completedTasks"):
+        data[key] = [
+            task for task in data.get(key, [])
+            if not (task.get("taskListId") == task_list_id and task.get("id") == task_id)
+        ]
     atomic_write_json(DATA_PATH, data, 0o640)
     queue_sync()
     return data
@@ -470,10 +599,20 @@ def update_event(event_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("Missing event identifier")
     calendar_id, body = event_body(payload, load_config())
     calendar_service, _ = services()
-    updated = calendar_service.events().patch(
+    # Calendar PATCH merges nested start/end objects. Converting an all-day
+    # event to a timed event can therefore leave both `date` and `dateTime`,
+    # which Google rejects. Replace those fields on the complete event instead.
+    existing = calendar_service.events().get(
         calendarId=calendar_id,
         eventId=event_id,
-        body=body,
+    ).execute()
+    existing["summary"] = body["summary"]
+    existing["start"] = body["start"]
+    existing["end"] = body["end"]
+    updated = calendar_service.events().update(
+        calendarId=calendar_id,
+        eventId=event_id,
+        body=existing,
         sendUpdates="all",
     ).execute()
     data = current_data()
@@ -485,6 +624,27 @@ def update_event(event_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     data["events"] = [
         replacement if event.get("id") == event_id and event.get("calendarId") == calendar_id else event
         for event in data.get("events", [])
+    ]
+    atomic_write_json(DATA_PATH, data, 0o640)
+    queue_sync()
+    return data
+
+
+def delete_event(event_id: str, calendar_id: str) -> dict[str, Any]:
+    event_id = str(event_id).strip()
+    calendar_id = str(calendar_id).strip()
+    if not event_id or not calendar_id:
+        raise ValueError("Missing event identifier")
+    calendar_service, _ = services()
+    calendar_service.events().delete(
+        calendarId=calendar_id,
+        eventId=event_id,
+        sendUpdates="all",
+    ).execute()
+    data = current_data()
+    data["events"] = [
+        event for event in data.get("events", [])
+        if not (event.get("id") == event_id and event.get("calendarId") == calendar_id)
     ]
     atomic_write_json(DATA_PATH, data, 0o640)
     queue_sync()

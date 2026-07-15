@@ -56,3 +56,29 @@ def test_display_control_route(monkeypatch):
     response = create_app().test_client().post("/api/display/control", json={"action": "away"})
     assert response.status_code == 200
     assert response.get_json()["display"]["mode"] == "away"
+
+
+def test_task_restore_update_delete_routes(monkeypatch):
+    calls = []
+    monkeypatch.setattr("homehub.app.engine.restore_task", lambda list_id, task_id: calls.append(("restore", list_id, task_id)) or {})
+    monkeypatch.setattr("homehub.app.engine.update_task", lambda list_id, task_id, payload: calls.append(("update", list_id, task_id, payload)) or {})
+    monkeypatch.setattr("homehub.app.engine.delete_task", lambda list_id, task_id: calls.append(("delete", list_id, task_id)) or {})
+    client = create_app().test_client()
+    assert client.post("/api/task/restore", json={"taskListId": "list", "taskId": "task"}).status_code == 200
+    assert client.put("/api/task/list/task", json={"title": "Changed"}).status_code == 200
+    assert client.delete("/api/task/list/task", json={}).status_code == 200
+    assert [call[0] for call in calls] == ["restore", "update", "delete"]
+
+
+def test_network_routes_require_setup_token(monkeypatch):
+    monkeypatch.setattr("homehub.app.scan_wifi", lambda: {"ok": True, "networks": [{"ssid": "Home"}]})
+    monkeypatch.setattr("homehub.app.run_privileged_json", lambda *_args, **_kwargs: {"ok": True})
+    client = create_app().test_client()
+    assert client.get("/api/setup/network/scan").status_code == 403
+    token = client.get("/api/setup/screen").get_json()["token"]
+    assert client.get(f"/api/setup/network/scan?token={token}").get_json()["networks"][0]["ssid"] == "Home"
+    response = client.post(
+        f"/api/setup/network/connect?token={token}",
+        json={"ssid": "Home", "password": "long-enough"},
+    )
+    assert response.status_code == 202

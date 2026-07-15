@@ -33,6 +33,11 @@
       </div>
 
       <div class="top-actions">
+        <button id="networkButton" class="network-button offline" aria-label="Network settings">
+          <svg class="network-icon wifi-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.8 8.8a14.1 14.1 0 0 1 18.4 0M6 12a9.3 9.3 0 0 1 12 0m-8.8 3.3a4.4 4.4 0 0 1 5.6 0M12 19h.01"/></svg>
+          <svg class="network-icon ethernet-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10v7h3v10H4V10h3V3Zm3 7v4m4-4v4M8 17h8"/></svg>
+          <span id="networkLabel">Offline</span>
+        </button>
         <button id="addEventButton" class="action-button primary">+ Event</button>
         <button id="powerButton" class="action-button">Power</button>
         <button id="settingsButton" class="action-button">Settings</button>
@@ -82,7 +87,6 @@
     <div class="modal-card editor-card">
       <header class="modal-header">
         <div><p id="eventEditorEyebrow">New event</p><h2 id="eventEditorTitle">Add to calendar</h2></div>
-        <button class="close-button" data-close="eventModal">Close</button>
       </header>
       <label class="field-label" for="eventTitle">Event name</label>
       <div id="eventTitle" class="text-entry" role="textbox" aria-label="Event name"></div>
@@ -95,7 +99,7 @@
           <span class="field-label">Start</span>
           <div class="step-control"><button id="eventTimeBack">-</button><strong id="eventTimeLabel"></strong><button id="eventTimeForward">+</button></div>
         </div>
-        <label><span class="field-label">Calendar</span><span class="select-wrap"><select id="eventCalendar"></select></span></label>
+        <div><span class="field-label">Calendar</span><div id="eventCalendarChoices" class="choice-pills"></div></div>
       </div>
       <div class="duration-row" id="durationRow">
         <button data-duration="30">30 min</button>
@@ -108,7 +112,10 @@
       </div>
       <div id="eventKeyboard" class="touch-keyboard"></div>
       <footer class="modal-actions">
-        <button id="saveEvent" class="primary wide">Add event</button>
+        <button id="deleteEvent" class="danger hidden">Delete</button>
+        <span class="action-spacer"></span>
+        <button data-close="eventModal">Close</button>
+        <button id="saveEvent" class="primary">Add event</button>
       </footer>
     </div>
   </section>
@@ -116,8 +123,7 @@
   <section id="taskModal" class="modal hidden" aria-hidden="true">
     <div class="modal-card editor-card compact-editor">
       <header class="modal-header">
-        <div><p>New task</p><h2>Add a family job</h2></div>
-        <button class="close-button" data-close="taskModal">Close</button>
+        <div><p id="taskEditorEyebrow">New task</p><h2 id="taskEditorTitle">Add a family job</h2></div>
       </header>
       <label class="field-label" for="taskTitle">Task name</label>
       <div id="taskTitle" class="text-entry" role="textbox" aria-label="Task name"></div>
@@ -126,10 +132,30 @@
           <span class="field-label">Due date</span>
           <div class="step-control"><button id="taskDateBack">-</button><strong id="taskDateLabel"></strong><button id="taskDateForward">+</button></div>
         </div>
-        <label><span class="field-label">Task list</span><span class="select-wrap"><select id="taskListSelect"></select></span></label>
+        <div><span class="field-label">Task list</span><div id="taskListChoices" class="choice-pills"></div></div>
       </div>
       <div id="taskKeyboard" class="touch-keyboard"></div>
-      <footer class="modal-actions"><button id="saveTask" class="primary wide">Add task</button></footer>
+      <footer class="modal-actions"><button id="deleteTask" class="danger hidden">Delete</button><span class="action-spacer"></span><button data-close="taskModal">Close</button><button id="saveTask" class="primary">Add task</button></footer>
+    </div>
+  </section>
+
+  <section id="networkModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card network-card">
+      <header class="modal-header">
+        <div><p>HomeHub connection</p><h2>Network</h2></div>
+      </header>
+      <div class="network-current">
+        <span id="networkStateDot" class="network-state-dot"></span>
+        <div><strong id="networkCurrentName">Checking connection</strong><span id="networkCurrentDetail"></span></div>
+        <button id="scanNetworks">Scan Wi-Fi</button>
+      </div>
+      <div id="networkChoices" class="network-choices"></div>
+      <section id="networkPasswordSection" class="network-password hidden">
+        <span class="field-label">Password for <b id="networkSelectedName"></b></span>
+        <div id="networkPassword" class="text-entry secret-entry" role="textbox" aria-label="Wi-Fi password"></div>
+        <div id="networkKeyboard" class="touch-keyboard"></div>
+      </section>
+      <footer class="modal-actions"><span class="action-spacer"></span><button data-close="networkModal">Close</button><button id="connectNetwork" class="primary" disabled>Connect</button></footer>
     </div>
   </section>
 

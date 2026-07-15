@@ -21,6 +21,18 @@ sudo reboot
 From 1.2.0 onward, signed updates, display restart and reboot work from both the
 touchscreen Settings panel and QR setup portal.
 
+## Upgrade from HomeHub 1.2.0 to 1.3.0
+
+Use **Settings → Software update → Check for update → Install 1.3.0** on the
+touchscreen, or use the same signed-update controls in the QR portal. HomeHub
+keeps Google authorization, selected calendars and task lists, cached data and
+screen-power state. The activation step installs NetworkManager if the base image
+does not already provide it, then adds only the exact Wi-Fi helper permission.
+
+After the first 1.3 sync, old task-list names are accepted as before. The next
+portal save automatically records stable Google task-list IDs. No manual
+migration and no reflash are required.
+
 The atomic updater preserves `/var/lib/homehub`, including Google credentials,
 tokens, selected calendars and task lists, subtitle, screen schedule, power mode
 and cached data. It restores the previous release automatically if the new server

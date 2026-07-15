@@ -12,7 +12,12 @@
     editorMinutes: 9 * 60,
     editorDuration: 60,
     editingEvent: null,
+    selectedCalendarId: "",
+    eventDeleteArmed: false,
     taskDate: new Date(),
+    editingTask: null,
+    selectedTaskListId: "",
+    taskDeleteArmed: false,
     activeText: null,
     completedOpen: false,
     setupInfo: null,
@@ -24,6 +29,9 @@
     promptedUpdate: "",
     toastTimer: null,
     refreshing: false,
+    network: null,
+    selectedNetwork: null,
+    networkPassword: "",
   };
 
   const elements = {
@@ -49,10 +57,14 @@
     eventDateLabel: byId("eventDateLabel"),
     eventTimeGroup: byId("eventTimeGroup"),
     eventTimeLabel: byId("eventTimeLabel"),
-    eventCalendar: byId("eventCalendar"),
+    eventCalendarChoices: byId("eventCalendarChoices"),
     taskTitle: byId("taskTitle"),
     taskDateLabel: byId("taskDateLabel"),
-    taskListSelect: byId("taskListSelect"),
+    taskListChoices: byId("taskListChoices"),
+    networkButton: byId("networkButton"),
+    networkLabel: byId("networkLabel"),
+    networkChoices: byId("networkChoices"),
+    networkPassword: byId("networkPassword"),
     setupQr: byId("setupQr"),
     setupUrl: byId("setupUrl"),
     sleepEnabled: byId("sleepEnabled"),
@@ -284,6 +296,7 @@
   function taskRow(task, completed = false) {
     const row = document.createElement("div");
     row.className = "task-row";
+    if (completed) row.classList.add("completed-task-row");
     if (!completed) {
       const check = document.createElement("button");
       check.className = "task-check";
@@ -292,18 +305,31 @@
       check.setAttribute("aria-label", `Complete ${task.title || "task"}`);
       if (task.readOnly) check.disabled = true;
       row.append(check);
-    } else {
-      const spacer = document.createElement("span");
-      row.append(spacer);
     }
-    const copy = document.createElement("div");
+    const copy = document.createElement("button");
     copy.className = "task-copy";
+    copy.dataset.taskId = task.id || "";
+    copy.dataset.taskListId = task.taskListId || "";
     const title = document.createElement("strong");
     title.textContent = task.title || "Untitled task";
     const meta = document.createElement("small");
     meta.textContent = taskMeta(task);
     copy.append(title, meta);
     row.append(copy);
+    if (completed) {
+      const restore = document.createElement("button");
+      restore.className = "task-restore";
+      restore.dataset.taskId = task.id || "";
+      restore.dataset.taskListId = task.taskListId || "";
+      restore.textContent = "Undo";
+      row.append(restore);
+      const remove = document.createElement("button");
+      remove.className = "task-remove";
+      remove.dataset.taskId = task.id || "";
+      remove.dataset.taskListId = task.taskListId || "";
+      remove.textContent = "Delete";
+      row.append(remove);
+    }
     return row;
   }
 
@@ -460,13 +486,14 @@
     target.textContent = value;
   }
 
-  function createKeyboard(container) {
+  function createKeyboard(container, options = {}) {
     const rows = [
+      ...(options.symbols ? [["@", ".", "_", "!", "#", "$", "%", "&", "+", "?"]] : []),
       ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
       ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
       ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
       ["Z", "X", "C", "V", "B", "N", "M", "-", "'"],
-      ["Space", "Delete"],
+      options.preserveCase ? ["Case", "Space", "Delete"] : ["Space", "Delete"],
     ];
     const fragment = document.createDocumentFragment();
     for (const keys of rows) {
@@ -477,8 +504,9 @@
         button.className = "keyboard-key";
         if (key === "Space") button.classList.add("space");
         if (key === "Delete") button.classList.add("delete");
+        if (key === "Case") button.classList.add("case");
         button.dataset.key = key;
-        button.textContent = key;
+        button.textContent = options.preserveCase && /^[A-Z]$/.test(key) ? key.toLowerCase() : key;
         row.append(button);
       }
       fragment.append(row);
@@ -487,10 +515,24 @@
     bindTap(container, event => {
       const key = event.target.closest("[data-key]")?.dataset.key;
       if (!key || !state.activeText) return;
+      if (key === "Case") {
+        options.uppercase = !options.uppercase;
+        container.querySelectorAll("[data-key]").forEach(button => {
+          if (/^[A-Z]$/.test(button.dataset.key)) {
+            button.textContent = options.uppercase ? button.dataset.key : button.dataset.key.toLowerCase();
+          }
+        });
+        return;
+      }
       const current = state.activeText.textContent || "";
       if (key === "Delete") state.activeText.textContent = [...current].slice(0, -1).join("");
       else if (key === "Space") state.activeText.textContent = `${current} `;
+      else if (options.preserveCase) {
+        const character = /^[A-Z]$/.test(key) && !options.uppercase ? key.toLowerCase() : key;
+        state.activeText.textContent = `${current}${character}`;
+      }
       else state.activeText.textContent = `${current}${current.length ? key.toLowerCase() : key}`;
+      if (state.activeText === elements.networkPassword) state.networkPassword = state.activeText.textContent || "";
     });
   }
 
@@ -508,14 +550,24 @@
     const calendars = state.data?.writableCalendars || [];
     const fragment = document.createDocumentFragment();
     for (const calendar of calendars) {
-      const option = document.createElement("option");
-      option.value = calendar.id;
-      option.textContent = calendar.title || "Calendar";
-      option.selected = calendar.id === selectedId || (!selectedId && calendar.primary);
-      fragment.append(option);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.calendarId = calendar.id;
+      button.textContent = calendar.title || "Calendar";
+      fragment.append(button);
     }
-    elements.eventCalendar.replaceChildren(fragment);
-    if (selectedId) elements.eventCalendar.value = selectedId;
+    state.selectedCalendarId = selectedId
+      || calendars.find(calendar => calendar.primary)?.id
+      || calendars[0]?.id
+      || "";
+    elements.eventCalendarChoices.replaceChildren(fragment);
+    renderChoiceSelection(elements.eventCalendarChoices, "calendarId", state.selectedCalendarId);
+  }
+
+  function renderChoiceSelection(container, key, selected) {
+    container.querySelectorAll(`[data-${key.replace(/[A-Z]/g, value => `-${value.toLowerCase()}`)}]`).forEach(button => {
+      button.classList.toggle("selected", button.dataset[key] === selected);
+    });
   }
 
   function openEventEditor(event = null, day = new Date()) {
@@ -532,9 +584,12 @@
     elements.eventEditorEyebrow.textContent = event ? "Edit event" : "New event";
     elements.eventEditorTitle.textContent = event ? "Update calendar event" : "Add to calendar";
     byId("saveEvent").textContent = event ? "Save changes" : "Add event";
+    byId("deleteEvent").classList.toggle("hidden", !event);
+    byId("deleteEvent").textContent = "Delete";
+    state.eventDeleteArmed = false;
     setTextTarget(elements.eventTitle, event?.title || "");
     populateEventCalendars(event?.calendarId || "");
-    elements.eventCalendar.disabled = Boolean(event);
+    elements.eventCalendarChoices.classList.toggle("locked", Boolean(event));
     renderEditorControls();
     closeModal("dayModal");
     openModal("eventModal");
@@ -552,7 +607,7 @@
       startMinutes: state.editorMinutes,
       durationMinutes: state.editorDuration === "allDay" ? 60 : Number(state.editorDuration),
       allDay: state.editorDuration === "allDay",
-      calendarId: state.editingEvent?.calendarId || elements.eventCalendar.value,
+      calendarId: state.editingEvent?.calendarId || state.selectedCalendarId,
     };
   }
 
@@ -619,41 +674,98 @@
     }
   }
 
-  function openTaskEditor() {
-    state.taskDate = copyDate(new Date());
-    setTextTarget(elements.taskTitle, "");
-    elements.taskDateLabel.textContent = readableDate(state.taskDate);
+  async function deleteEvent() {
+    const event = state.editingEvent;
+    if (!event) return;
+    const button = byId("deleteEvent");
+    if (!state.eventDeleteArmed) {
+      state.eventDeleteArmed = true;
+      button.textContent = "Tap again to delete";
+      setTimeout(() => {
+        if (!state.eventDeleteArmed) return;
+        state.eventDeleteArmed = false;
+        button.textContent = "Delete";
+      }, 6000);
+      return;
+    }
+    state.eventDeleteArmed = false;
+    button.disabled = true;
+    try {
+      const response = await api(`/api/event/${encodeURIComponent(event.id)}`, {
+        method: "DELETE",
+        body: JSON.stringify({calendarId: event.calendarId}),
+      });
+      applyData(response.data);
+      closeModal("eventModal");
+      openDay(state.selectedDay || state.editorDate);
+      showToast("Event deleted");
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = "Delete";
+      showToast(error.message, true);
+    }
+  }
+
+  function populateTaskLists(selectedId = "") {
     const lists = state.data?.taskLists || [];
-    elements.taskListSelect.replaceChildren(...lists.map(list => {
-      const option = document.createElement("option");
-      option.value = list.id;
-      option.textContent = list.title || "Tasks";
-      return option;
+    state.selectedTaskListId = selectedId || lists[0]?.id || "";
+    elements.taskListChoices.replaceChildren(...lists.map(list => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.taskListId = list.id;
+      button.textContent = list.title || "Tasks";
+      return button;
     }));
+    renderChoiceSelection(elements.taskListChoices, "taskListId", state.selectedTaskListId);
+  }
+
+  function openTaskEditor(task = null) {
+    if (task?.readOnly) return showToast("Assigned tasks are read-only in HomeHub");
+    state.editingTask = task;
+    const parsedDue = task?.due ? new Date(task.due) : null;
+    state.taskDate = parsedDue && !Number.isNaN(parsedDue.getTime()) ? copyDate(parsedDue) : copyDate(new Date());
+    setTextTarget(elements.taskTitle, task?.title || "");
+    elements.taskDateLabel.textContent = readableDate(state.taskDate);
+    populateTaskLists(task?.taskListId || "");
+    elements.taskListChoices.classList.toggle("locked", Boolean(task));
+    byId("taskEditorEyebrow").textContent = task ? "Edit task" : "New task";
+    byId("taskEditorTitle").textContent = task ? "Update family job" : "Add a family job";
+    byId("saveTask").textContent = task ? "Save changes" : "Add task";
+    byId("deleteTask").classList.toggle("hidden", !task);
+    byId("deleteTask").textContent = "Delete";
+    state.taskDeleteArmed = false;
     openModal("taskModal");
   }
 
   async function saveTask() {
     const title = elements.taskTitle.textContent.trim();
     if (!title) return showToast("Enter a task name", true);
-    const payload = {title, due: dateKey(state.taskDate), taskListId: elements.taskListSelect.value};
+    const original = state.editingTask;
+    const payload = {title, due: dateKey(state.taskDate), taskListId: original?.taskListId || state.selectedTaskListId};
+    if (!payload.taskListId) return showToast("No Google Task list is available", true);
     const oldTasks = [...(state.data?.tasks || [])];
     const list = (state.data?.taskLists || []).find(item => item.id === payload.taskListId);
-    state.data.tasks = [...oldTasks, {
-      id: `pending-${Date.now()}`,
+    const optimistic = {
+      id: original?.id || `pending-${Date.now()}`,
       taskListId: payload.taskListId,
       title,
       due: `${payload.due}T00:00:00Z`,
       list: list?.title || "Tasks",
       pending: true,
-    }];
+    };
+    state.data.tasks = original
+      ? oldTasks.map(task => task.id === original.id && task.taskListId === original.taskListId ? optimistic : task)
+      : [...oldTasks, optimistic];
     renderTasks();
     closeModal("taskModal");
-    showToast("Adding task");
+    showToast(original ? "Saving task" : "Adding task");
     try {
-      const response = await api("/api/task", {method: "POST", body: JSON.stringify(payload)});
+      const path = original
+        ? `/api/task/${encodeURIComponent(original.taskListId)}/${encodeURIComponent(original.id)}`
+        : "/api/task";
+      const response = await api(path, {method: original ? "PUT" : "POST", body: JSON.stringify(payload)});
       applyData(response.data);
-      showToast("Task added");
+      showToast(original ? "Task updated" : "Task added");
     } catch (error) {
       state.data.tasks = oldTasks;
       renderTasks();
@@ -685,6 +797,74 @@
     }
   }
 
+  async function restoreTask(button) {
+    const taskId = button.dataset.taskId;
+    const taskListId = button.dataset.taskListId;
+    if (!taskId || !taskListId || button.disabled) return;
+    button.disabled = true;
+    try {
+      const response = await api("/api/task/restore", {
+        method: "POST",
+        body: JSON.stringify({taskId, taskListId}),
+      });
+      applyData(response.data);
+      showToast("Task restored");
+    } catch (error) {
+      button.disabled = false;
+      showToast(error.message, true);
+    }
+  }
+
+  async function deleteTask() {
+    const task = state.editingTask;
+    if (!task) return;
+    const button = byId("deleteTask");
+    if (!state.taskDeleteArmed) {
+      state.taskDeleteArmed = true;
+      button.textContent = "Tap again to delete";
+      setTimeout(() => {
+        if (!state.taskDeleteArmed) return;
+        state.taskDeleteArmed = false;
+        button.textContent = "Delete";
+      }, 6000);
+      return;
+    }
+    state.taskDeleteArmed = false;
+    button.disabled = true;
+    try {
+      const response = await api(`/api/task/${encodeURIComponent(task.taskListId)}/${encodeURIComponent(task.id)}`, {
+        method: "DELETE",
+        body: "{}",
+      });
+      applyData(response.data);
+      closeModal("taskModal");
+      showToast("Task deleted");
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = "Delete";
+      showToast(error.message, true);
+    }
+  }
+
+  async function deleteCompletedTask(button) {
+    if (!button.dataset.armed) {
+      button.dataset.armed = "true";
+      button.textContent = "Confirm";
+      setTimeout(() => { button.dataset.armed = ""; button.textContent = "Delete"; }, 6000);
+      return;
+    }
+    try {
+      const response = await api(`/api/task/${encodeURIComponent(button.dataset.taskListId)}/${encodeURIComponent(button.dataset.taskId)}`, {
+        method: "DELETE",
+        body: "{}",
+      });
+      applyData(response.data);
+      showToast("Task deleted");
+    } catch (error) {
+      showToast(error.message, true);
+    }
+  }
+
   function displayClockValue(value) {
     const [hour, minute] = String(value || "00:00").split(":").map(Number);
     return new Date(2000, 0, 1, hour, minute).toLocaleTimeString("en-AU", {hour: "numeric", minute: "2-digit"});
@@ -707,6 +887,113 @@
     elements.setupUrl.textContent = state.setupInfo.url;
     elements.versionText.textContent = `Installed HomeHub ${state.setupInfo.version}`;
     return state.setupInfo;
+  }
+
+  function renderNetworkStatus(network) {
+    state.network = network;
+    const online = network?.state === "online";
+    const limited = network?.state === "limited";
+    elements.networkButton.classList.toggle("online", online);
+    elements.networkButton.classList.toggle("limited", limited);
+    elements.networkButton.classList.toggle("offline", !online && !limited);
+    elements.networkButton.classList.toggle("ethernet", network?.type === "ethernet");
+    elements.networkLabel.textContent = network?.type === "ethernet"
+      ? "Ethernet"
+      : network?.ssid || (limited ? "Limited" : "Offline");
+    byId("networkStateDot").className = `network-state-dot ${online ? "online" : limited ? "limited" : "offline"}`;
+    byId("networkCurrentName").textContent = network?.type === "ethernet"
+      ? `Ethernet · ${network.connection || "Connected"}`
+      : network?.ssid || "Not connected";
+    const detail = [
+      network?.state === "online" ? "Internet connected" : network?.state === "limited" ? "Local network only" : "Offline",
+      network?.signal != null ? `${network.signal}% signal` : "",
+      network?.ip || "",
+    ].filter(Boolean);
+    byId("networkCurrentDetail").textContent = detail.join(" · ");
+  }
+
+  async function pollNetworkStatus(silent = true) {
+    try {
+      renderNetworkStatus(await api("/api/network/status"));
+    } catch (error) {
+      renderNetworkStatus({state: "offline", type: "offline"});
+      if (!silent) showToast(error.message, true);
+    }
+  }
+
+  function chooseNetwork(network) {
+    state.selectedNetwork = network;
+    state.networkPassword = "";
+    setTextTarget(elements.networkPassword, "");
+    byId("networkSelectedName").textContent = network.ssid;
+    byId("networkPasswordSection").classList.toggle("hidden", !network.secured);
+    byId("connectNetwork").disabled = false;
+    elements.networkChoices.querySelectorAll("[data-ssid]").forEach(button => {
+      button.classList.toggle("selected", button.dataset.ssid === network.ssid);
+    });
+  }
+
+  async function scanNetworks() {
+    const scanButton = byId("scanNetworks");
+    scanButton.disabled = true;
+    scanButton.textContent = "Scanning";
+    elements.networkChoices.textContent = "Looking for Wi-Fi networks…";
+    try {
+      const setup = await ensureSetupInfo();
+      const result = await api(`/api/setup/network/scan?token=${encodeURIComponent(setup.token)}`);
+      elements.networkChoices.replaceChildren(...(result.networks || []).map(network => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.dataset.ssid = network.ssid;
+        const name = document.createElement("strong");
+        name.textContent = network.ssid;
+        const detail = document.createElement("span");
+        detail.textContent = `${network.signal}% · ${network.secured ? network.security || "Secured" : "Open"}${network.active ? " · Connected" : ""}`;
+        button.append(name, detail);
+        button._network = network;
+        return button;
+      }));
+      if (!(result.networks || []).length) elements.networkChoices.textContent = "No Wi-Fi networks found.";
+    } catch (error) {
+      elements.networkChoices.textContent = error.message;
+      showToast(error.message, true);
+    } finally {
+      scanButton.disabled = false;
+      scanButton.textContent = "Scan Wi-Fi";
+    }
+  }
+
+  function openNetworkSettings() {
+    state.selectedNetwork = null;
+    byId("connectNetwork").disabled = true;
+    byId("networkPasswordSection").classList.add("hidden");
+    openModal("networkModal");
+    pollNetworkStatus(false);
+    scanNetworks();
+  }
+
+  async function connectNetwork() {
+    if (!state.selectedNetwork) return;
+    const password = elements.networkPassword.textContent || "";
+    if (state.selectedNetwork.secured && password.length < 8) return showToast("Enter the Wi-Fi password", true);
+    const button = byId("connectNetwork");
+    button.disabled = true;
+    button.textContent = "Connecting";
+    try {
+      const setup = await ensureSetupInfo();
+      const result = await api(`/api/setup/network/connect?token=${encodeURIComponent(setup.token)}`, {
+        method: "POST",
+        body: JSON.stringify({ssid: state.selectedNetwork.ssid, password}),
+      });
+      elements.networkPassword.textContent = "";
+      state.networkPassword = "";
+      showToast(result.message || "HomeHub is switching Wi-Fi");
+      setTimeout(() => pollNetworkStatus(false), 5000);
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = "Connect";
+      showToast(error.message, true);
+    }
   }
 
   function openSettings() {
@@ -925,7 +1212,8 @@
       renderCalendar();
     });
     bindTap(byId("addEventButton"), () => openEventEditor(null, new Date()));
-    bindTap(byId("addTaskButton"), openTaskEditor);
+    bindTap(byId("addTaskButton"), () => openTaskEditor(null));
+    bindTap(elements.networkButton, openNetworkSettings);
     bindTap(byId("powerButton"), () => {
       openModal("powerModal");
       pollDisplayStatus();
@@ -946,7 +1234,17 @@
     bindTap(byId("dayAddEvent"), () => openEventEditor(null, state.selectedDay || new Date()));
     bindTap(elements.taskList, event => {
       const button = event.target.closest(".task-check");
-      if (button) completeTask(button);
+      if (button) return completeTask(button);
+      const edit = event.target.closest(".task-copy");
+      if (!edit) return;
+      const task = (state.data?.tasks || []).find(item => item.id === edit.dataset.taskId && item.taskListId === edit.dataset.taskListId);
+      if (task) openTaskEditor(task);
+    });
+    bindTap(elements.completedList, event => {
+      const restore = event.target.closest(".task-restore");
+      if (restore) return restoreTask(restore);
+      const remove = event.target.closest(".task-remove");
+      if (remove) return deleteCompletedTask(remove);
     });
     bindTap(elements.completedToggle, () => {
       state.completedOpen = !state.completedOpen;
@@ -962,10 +1260,32 @@
       state.editorDuration = value === "allDay" ? value : Number(value);
       renderEditorControls();
     });
+    bindTap(elements.eventCalendarChoices, event => {
+      if (state.editingEvent) return;
+      const button = event.target.closest("[data-calendar-id]");
+      if (!button) return;
+      state.selectedCalendarId = button.dataset.calendarId;
+      renderChoiceSelection(elements.eventCalendarChoices, "calendarId", state.selectedCalendarId);
+    });
     bindTap(byId("saveEvent"), saveEvent);
+    bindTap(byId("deleteEvent"), deleteEvent);
     bindTap(byId("taskDateBack"), () => { moveDate(state.taskDate, -1); elements.taskDateLabel.textContent = readableDate(state.taskDate); });
     bindTap(byId("taskDateForward"), () => { moveDate(state.taskDate, 1); elements.taskDateLabel.textContent = readableDate(state.taskDate); });
+    bindTap(elements.taskListChoices, event => {
+      if (state.editingTask) return;
+      const button = event.target.closest("[data-task-list-id]");
+      if (!button) return;
+      state.selectedTaskListId = button.dataset.taskListId;
+      renderChoiceSelection(elements.taskListChoices, "taskListId", state.selectedTaskListId);
+    });
     bindTap(byId("saveTask"), saveTask);
+    bindTap(byId("deleteTask"), deleteTask);
+    bindTap(byId("scanNetworks"), scanNetworks);
+    bindTap(elements.networkChoices, event => {
+      const button = event.target.closest("[data-ssid]");
+      if (button?._network) chooseNetwork(button._network);
+    });
+    bindTap(byId("connectNetwork"), connectNetwork);
     bindTap(byId("saveSleep"), saveSleepSettings);
     bindTap(byId("testDisplay"), async () => {
       if (await saveSleepSettings()) displayAction("test");
@@ -1010,14 +1330,17 @@
     populateSleepSelect(elements.sleepOn);
     createKeyboard(byId("eventKeyboard"));
     createKeyboard(byId("taskKeyboard"));
+    createKeyboard(byId("networkKeyboard"), {symbols: true, preserveCase: true});
     bindControls();
     renderClock();
     refreshData();
     pollDisplayStatus();
+    pollNetworkStatus();
     setTimeout(pollUpdateStatus, 5000);
     setInterval(renderClock, 1000);
     setInterval(() => refreshData(true), 60000);
     setInterval(pollDisplayStatus, 5000);
+    setInterval(() => pollNetworkStatus(true), 15000);
     setInterval(pollUpdateStatus, 60 * 1000);
     let resizeTimer;
     window.addEventListener("resize", () => {

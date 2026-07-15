@@ -23,6 +23,7 @@ from . import VERSION
 from . import engine
 from .config import (
     CREDENTIALS_PATH,
+    NETWORK_REQUEST_PATH,
     PACKAGE_ROOT,
     STATE_DIR,
     TOKEN_PATH,
@@ -32,7 +33,7 @@ from .config import (
     save_config,
 )
 from .display_power import display_status, request_display_action
-from .network import local_ipv4
+from .network import local_ipv4, network_status, scan_wifi, validate_wifi_request
 from .updater import check_release, version_tuple
 
 SCOPES = engine.SCOPES
@@ -128,6 +129,24 @@ def run_privileged(*arguments: str) -> None:
     if result.returncode:
         detail = (result.stderr or result.stdout or "privileged command failed").strip()
         raise RuntimeError(detail)
+
+
+def run_privileged_json(*arguments: str, timeout: int = 45) -> dict[str, Any]:
+    result = subprocess.run(
+        ["sudo", "-n", *arguments],
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        check=False,
+    )
+    output = (result.stdout or "").strip()
+    try:
+        value = json.loads(output) if output else {}
+    except json.JSONDecodeError as exc:
+        raise RuntimeError((result.stderr or output or "Network helper returned invalid data").strip()) from exc
+    if result.returncode or value.get("ok") is False:
+        raise RuntimeError(str(value.get("error") or result.stderr or "Network helper failed").strip())
+    return value
 
 
 def token_authorized() -> bool:
@@ -267,10 +286,11 @@ def create_app() -> Flask:
             "default_task_list": config.get("default_task_list", ""),
             "calendars": live.get("calendars", []),
             "writableCalendars": live.get("writableCalendars", []),
-            "taskLists": live.get("taskLists", []),
+            "taskLists": live.get("availableTaskLists", live.get("taskLists", [])),
             "updateConfig": config.get("updates", {}),
             "display": display_status(),
             "update": update_status(),
+            "network": network_status(),
         })
         return jsonify(public)
 
@@ -383,9 +403,31 @@ def create_app() -> Flask:
             payload.get("taskId", ""),
         )
 
+    @app.post("/api/task/restore")
+    def task_restore():
+        payload = request.get_json(silent=True) or {}
+        return _engine_result(
+            engine.restore_task,
+            payload.get("taskListId", ""),
+            payload.get("taskId", ""),
+        )
+
     @app.post("/api/task")
     def task_create():
         return _engine_result(engine.create_task, request.get_json(silent=True) or {}, created=True)
+
+    @app.put("/api/task/<task_list_id>/<task_id>")
+    def task_update(task_list_id: str, task_id: str):
+        return _engine_result(
+            engine.update_task,
+            task_list_id,
+            task_id,
+            request.get_json(silent=True) or {},
+        )
+
+    @app.delete("/api/task/<task_list_id>/<task_id>")
+    def task_delete(task_list_id: str, task_id: str):
+        return _engine_result(engine.delete_task, task_list_id, task_id)
 
     @app.post("/api/event")
     def event_create():
@@ -394,6 +436,39 @@ def create_app() -> Flask:
     @app.put("/api/event/<event_id>")
     def event_update(event_id: str):
         return _engine_result(engine.update_event, event_id, request.get_json(silent=True) or {})
+
+    @app.delete("/api/event/<event_id>")
+    def event_delete(event_id: str):
+        payload = request.get_json(silent=True) or {}
+        return _engine_result(engine.delete_event, event_id, payload.get("calendarId", ""))
+
+    @app.get("/api/network/status")
+    def get_network_status():
+        return jsonify(network_status())
+
+    @app.get("/api/setup/network/scan")
+    @require_setup
+    def network_scan():
+        try:
+            return jsonify(scan_wifi())
+        except Exception as exc:
+            return jsonify(ok=False, error=str(exc)), 400
+
+    @app.post("/api/setup/network/connect")
+    @require_setup
+    def network_connect():
+        try:
+            connection = validate_wifi_request(request.get_json(silent=True) or {})
+            atomic_write_json(NETWORK_REQUEST_PATH, connection, mode=0o600)
+            run_privileged_json("/usr/local/sbin/homehub-network", "apply")
+            return jsonify(
+                ok=True,
+                scheduled=True,
+                message="HomeHub is switching Wi-Fi. Reconnect through homehub.local when it is ready.",
+            ), 202
+        except Exception as exc:
+            NETWORK_REQUEST_PATH.unlink(missing_ok=True)
+            return jsonify(ok=False, error=str(exc)), 400
 
     @app.post("/api/settings")
     def settings():

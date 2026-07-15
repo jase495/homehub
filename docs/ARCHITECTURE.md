@@ -4,6 +4,7 @@
 Google Calendar and Tasks -> background sync -> atomic cache.json
                                       |                 |
 setup portal ----------------------> Flask API <---------+
+NetworkManager <--- narrow helper -----^                 |
                                                         |
                                                         v
                                                Cage + Cog dashboard
@@ -35,7 +36,31 @@ SVG is cached by setup URL.
 - Gmail passwords never pass through HomeHub; Google access uses OAuth tokens.
 - OTA accepts only a manifest signed by the enrolled Ed25519 public key and
   verifies the artifact SHA-256 named by that manifest.
-- The app runs unprivileged. Narrow root helpers perform update and reboot work.
+- The app runs unprivileged. Narrow root helpers perform update, reboot and
+  explicitly requested Wi-Fi connection changes. Wi-Fi secrets are written to
+  a mode-0600 handoff file, never passed on the process command line, and removed
+  after NetworkManager consumes them.
+
+## Google Tasks consistency
+
+Open and completed tasks are deliberately fetched in separate paginated API
+queries. Open tasks have no completion timestamp, while first-party completed
+tasks are hidden rows. Mixing both into a request constrained by `completedMin`
+filters out open jobs. HomeHub therefore applies that constraint and
+`showHidden` only to the completed-task query.
+
+Task-list configuration stores stable Google list IDs as of 1.3 while still
+accepting list titles saved by v5, 1.0, 1.1 or 1.2.
+
+## Network management
+
+The header polls read-only NetworkManager status every 15 seconds and shows
+Ethernet, Wi-Fi SSID, limited connectivity or offline state. Wi-Fi scans require
+the physical QR setup token. A connection request is validated by the
+unprivileged server, written to `/var/lib/homehub/network-request.json`, then
+handed to the exact sudo-allowed `homehub-network apply` action. The helper
+schedules the switch after returning HTTP so the setup page can display a useful
+handoff message before its old connection disappears.
 
 ## Display power state
 
